@@ -1,0 +1,84 @@
+[
+  {
+    "id": "ac-e1",
+    "timestamp": "2026-08-10T09:13:00+00:00",
+    "host": "LAPTOP-184",
+    "user": "j.smith@acme.com",
+    "event_type": "authentication",
+    "fields": {
+      "result": "success",
+      "source_ip": "185.220.101.7",
+      "geo_country": "Country not previously associated with this user",
+      "geo_new_for_user": true,
+      "mfa": false,
+      "off_hours": false,
+      "known_malicious_ip": true,
+      "travel_notice": false,
+      "corporate_vpn": false
+    }
+  },
+  {
+    "id": "ac-e2",
+    "timestamp": "2026-08-10T09:16:00+00:00",
+    "host": "LAPTOP-184",
+    "user": "j.smith@acme.com",
+    "event_type": "process_creation",
+    "fields": {
+      "process": "powershell.exe",
+      "parent_process": "outlook.exe",
+      "command_line": "powershell.exe -NoProfile -WindowStyle Hidden",
+      "network_connection": false,
+      "first_seen_for_user": true,
+      "user_department": "Finance",
+      "approved_maintenance_window": false,
+      "known_deployment_script": false
+    }
+  },
+  {
+    "id": "ac-e3",
+    "timestamp": "2026-08-10T09:17:00+00:00",
+    "host": "LAPTOP-184",
+    "user": "j.smith@acme.com",
+    "event_type": "process_creation",
+    "fields": {
+      "process": "powershell.exe",
+      "parent_process": "powershell.exe",
+      "command_line": "powershell.exe -EncodedCommand JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAA...",
+      "network_connection": true,
+      "first_seen_for_user": true,
+      "user_department": "Finance",
+      "approved_maintenance_window": false,
+      "known_deployment_script": false
+    }
+  },
+  {
+    "id": "ac-e4",
+    "timestamp": "2026-08-10T09:19:00+00:00",
+    "host": "LAPTOP-184",
+    "user": "j.smith@acme.com",
+    "event_type": "credential_access",
+    "fields": {
+      "process": "rundll32.exe",
+      "target_process": "lsass.exe",
+      "access_rights": "PROCESS_VM_READ",
+      "user_department": "Finance"
+    }
+  },
+  {
+    "id": "ac-e5",
+    "timestamp": "2026-08-10T09:22:00+00:00",
+    "host": "LAPTOP-184",
+    "user": "j.smith@acme.com",
+    "event_type": "network_connection",
+    "fields": {
+      "protocol": "SMB",
+      "dest_host": "FINANCE-WS03",
+      "admin_share": true,
+      "source_is_workstation": true,
+      "destination_sensitive": true,
+      "first_seen_for_user": true,
+      "scheduled_job": false,
+      "source_is_admin_host": false
+    }
+  }
+]

@@ -1,0 +1,40 @@
+title: Mass File Modification Consistent with Ransomware
+id: mass_file_modification_ransomware
+status: stable
+description: >
+  Detects a high volume of file modifications with extension changes in
+  a short window on a single host, consistent with ransomware encryption
+  activity rather than normal user or application behavior.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: file_modification
+  product: windows
+detection:
+  selection:
+    event_type: file_modification
+    extension_change: true
+  selection_volume:
+    file_count|gte: 200
+  condition: selection and selection_volume
+level: critical
+tags:
+  - attack.impact
+  - attack.t1486
+falsepositives:
+  - Scheduled backup or archival compression jobs
+  - Bulk file-format migration projects
+  - Full-disk encryption software rollout (e.g. BitLocker)
+confidence:
+  base: 85
+  increase:
+    - factor: "Ransom note file dropped in modified directories"
+      field_check: {field: ransom_note_dropped, equals: true}
+      weight: 10
+    - factor: "Modification rate indicates automated/scripted activity"
+      field_check: {field: automated_pattern, equals: true}
+      weight: 5
+  decrease:
+    - factor: "Activity matches a scheduled backup/compression job"
+      field_check: {field: backup_job, equals: true}
+      weight: -50

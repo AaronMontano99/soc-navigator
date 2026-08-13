@@ -1,0 +1,80 @@
+[
+  {
+    "id": "rw-e1",
+    "timestamp": "2026-08-05T14:02:00+00:00",
+    "host": "WKS-221",
+    "user": "m.chen@acme.com",
+    "event_type": "email",
+    "fields": {
+      "action": "link_click",
+      "subject": "Invoice #88231 - Action Required",
+      "sender_external": true,
+      "sender_domain_new": true,
+      "gateway_bypassed": true,
+      "link_reputation": "malicious",
+      "isolated_browsing": false
+    }
+  },
+  {
+    "id": "rw-e2",
+    "timestamp": "2026-08-05T14:05:00+00:00",
+    "host": "WKS-221",
+    "user": "m.chen@acme.com",
+    "event_type": "process_creation",
+    "fields": {
+      "process": "powershell.exe",
+      "parent_process": "winword.exe",
+      "command_line": "powershell.exe -EncodedCommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQA...",
+      "network_connection": true,
+      "first_seen_for_user": true,
+      "user_department": "Sales",
+      "approved_maintenance_window": false,
+      "known_deployment_script": false
+    }
+  },
+  {
+    "id": "rw-e3",
+    "timestamp": "2026-08-05T14:09:00+00:00",
+    "host": "WKS-221",
+    "user": "m.chen@acme.com",
+    "event_type": "credential_access",
+    "fields": {
+      "process": "rundll32.exe",
+      "target_process": "lsass.exe",
+      "access_rights": "PROCESS_VM_READ",
+      "user_department": "Sales"
+    }
+  },
+  {
+    "id": "rw-e4",
+    "timestamp": "2026-08-05T14:15:00+00:00",
+    "host": "WKS-221",
+    "user": "m.chen@acme.com",
+    "event_type": "network_connection",
+    "fields": {
+      "protocol": "SMB",
+      "dest_host": "FILESVR-02",
+      "admin_share": true,
+      "source_is_workstation": true,
+      "destination_sensitive": true,
+      "first_seen_for_user": true,
+      "scheduled_job": false,
+      "source_is_admin_host": false
+    }
+  },
+  {
+    "id": "rw-e5",
+    "timestamp": "2026-08-05T14:22:00+00:00",
+    "host": "FILESVR-02",
+    "user": "m.chen@acme.com",
+    "event_type": "file_modification",
+    "fields": {
+      "path": "\\\\FILESVR-02\\Shared\\Finance\\*",
+      "extension_change": true,
+      "file_count": 5400,
+      "ransom_note_dropped": true,
+      "automated_pattern": true,
+      "backup_job": false
+    }
+  }
+]

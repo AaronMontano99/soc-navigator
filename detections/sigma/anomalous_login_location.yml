@@ -1,0 +1,45 @@
+title: Successful Authentication from a New Location
+id: anomalous_login_location
+status: stable
+description: >
+  Detects a successful authentication from a location/IP not previously
+  associated with this user, a leading indicator of account compromise
+  when combined with other signals (no MFA, off-hours, known-bad IP).
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: authentication
+  product: identity_provider
+detection:
+  selection:
+    event_type: authentication
+    result: success
+    geo_new_for_user: true
+  condition: selection
+level: medium
+tags:
+  - attack.initial_access
+  - attack.t1078
+falsepositives:
+  - Legitimate business travel
+  - VPN or proxy egress point changes
+  - ISP IP reassignment
+confidence:
+  base: 50
+  increase:
+    - factor: "Multi-factor authentication was not used"
+      field_check: {field: mfa, equals: false}
+      weight: 20
+    - factor: "Source IP matches a known threat-intelligence indicator"
+      field_check: {field: known_malicious_ip, equals: true}
+      weight: 25
+    - factor: "Login occurred outside the user's normal working hours"
+      field_check: {field: off_hours, equals: true}
+      weight: 10
+  decrease:
+    - factor: "User has an active travel notice on file"
+      field_check: {field: travel_notice, equals: true}
+      weight: -35
+    - factor: "Source is the corporate VPN egress point"
+      field_check: {field: corporate_vpn, equals: true}
+      weight: -30

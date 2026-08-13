@@ -1,0 +1,45 @@
+title: SMB Admin Share Connection (Possible Lateral Movement)
+id: smb_lateral_movement
+status: stable
+description: >
+  Detects a connection to an administrative SMB share (C$, ADMIN$) on a
+  remote host, a common mechanism for lateral movement and remote
+  execution once credentials or a session have been obtained.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    event_type: network_connection
+    protocol: SMB
+    admin_share: true
+  condition: selection
+level: high
+tags:
+  - attack.lateral_movement
+  - attack.t1021.002
+falsepositives:
+  - Scheduled backup jobs
+  - Software deployment / patch management
+  - Legitimate systems administration
+confidence:
+  base: 55
+  increase:
+    - factor: "Connection originated from a workstation, not a server or admin jump host"
+      field_check: {field: source_is_workstation, equals: true}
+      weight: 15
+    - factor: "Destination is a sensitive business system"
+      field_check: {field: destination_sensitive, equals: true}
+      weight: 20
+    - factor: "First observed SMB admin-share connection for this user"
+      field_check: {field: first_seen_for_user, equals: true}
+      weight: 10
+  decrease:
+    - factor: "Connection matches a scheduled backup/patch job"
+      field_check: {field: scheduled_job, equals: true}
+      weight: -30
+    - factor: "Source is an approved systems-administration host"
+      field_check: {field: source_is_admin_host, equals: true}
+      weight: -25

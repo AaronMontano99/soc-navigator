@@ -1,0 +1,32 @@
+[
+  {
+    "id": "it-e1",
+    "timestamp": "2026-08-03T20:15:00+00:00",
+    "host": "WKS-330",
+    "user": "d.walker@acme.com",
+    "event_type": "data_access",
+    "fields": {
+      "action": "mass_download",
+      "file_count": 340,
+      "off_hours": true,
+      "baseline_deviation": true,
+      "scope_deviation": true,
+      "approved_project": false
+    }
+  },
+  {
+    "id": "it-e2",
+    "timestamp": "2026-08-03T20:41:00+00:00",
+    "host": "WKS-330",
+    "user": "d.walker@acme.com",
+    "event_type": "data_access",
+    "fields": {
+      "action": "upload",
+      "destination": "personal-dropbox.com",
+      "destination_sanctioned": false,
+      "destination_personal": true,
+      "volume_matches_download": true,
+      "approved_vendor": false
+    }
+  }
+]

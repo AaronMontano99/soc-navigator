@@ -1,0 +1,50 @@
+title: Suspicious Encoded PowerShell Execution
+id: suspicious_powershell_encoded
+status: stable
+description: >
+  Detects PowerShell execution using the -EncodedCommand parameter, a
+  common technique for obfuscating malicious payloads from static
+  analysis and command-line logging.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_process:
+    process: powershell.exe
+  selection_encoded:
+    command_line|contains:
+      - "-enc"
+      - "-encodedcommand"
+  condition: selection_process and selection_encoded
+level: high
+tags:
+  - attack.execution
+  - attack.t1059.001
+falsepositives:
+  - Legitimate administrative scripts using encoded commands
+  - Software deployment / RMM tooling
+  - Scheduled maintenance automation
+confidence:
+  base: 60
+  increase:
+    - factor: "Unknown or non-standard parent process"
+      field_check: {field: parent_process, not_in: [explorer.exe, cmd.exe, services.exe, mmc.exe]}
+      weight: 15
+    - factor: "External network connection observed from this process"
+      field_check: {field: network_connection, equals: true}
+      weight: 15
+    - factor: "First time this behavior has been observed for this user"
+      field_check: {field: first_seen_for_user, equals: true}
+      weight: 10
+  decrease:
+    - factor: "User belongs to the IT/Administrators department"
+      field_check: {field: user_department, equals: IT}
+      weight: -20
+    - factor: "Occurred within an approved maintenance window"
+      field_check: {field: approved_maintenance_window, equals: true}
+      weight: -25
+    - factor: "Command matches a known, hashed deployment script"
+      field_check: {field: known_deployment_script, equals: true}
+      weight: -20

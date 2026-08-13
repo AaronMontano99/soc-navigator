@@ -1,0 +1,19 @@
+[
+  {
+    "id": "fp-e1",
+    "timestamp": "2026-08-09T01:15:00+00:00",
+    "host": "MGMT-SVR-04",
+    "user": "it.admin@acme.com",
+    "event_type": "process_creation",
+    "fields": {
+      "process": "powershell.exe",
+      "parent_process": "services.exe",
+      "command_line": "powershell.exe -EncodedCommand VABlAHMAdAAtAEQAZQBwAGwAbwB5AG0AZQBuAHQAUwBjAHIAaQBwAHQA...",
+      "network_connection": false,
+      "first_seen_for_user": false,
+      "user_department": "IT",
+      "approved_maintenance_window": true,
+      "known_deployment_script": true
+    }
+  }
+]

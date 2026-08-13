@@ -1,0 +1,43 @@
+title: Anomalous Mass File Download
+id: mass_file_download_anomaly
+status: stable
+description: >
+  Detects a user downloading an unusually large number of files in a
+  single session, a common precursor to insider-driven data theft or
+  exfiltration ahead of departure.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: data_access
+  product: cloud_saas
+detection:
+  selection:
+    event_type: data_access
+    action: mass_download
+  selection_volume:
+    file_count|gte: 100
+  condition: selection and selection_volume
+level: medium
+tags:
+  - attack.collection
+  - attack.t1530
+falsepositives:
+  - Approved bulk data migrations
+  - Legal / e-discovery collection
+  - Scheduled reporting exports
+confidence:
+  base: 50
+  increase:
+    - factor: "Download occurred outside the user's normal working hours"
+      field_check: {field: off_hours, equals: true}
+      weight: 15
+    - factor: "Behavior deviates from this user's 30-day baseline"
+      field_check: {field: baseline_deviation, equals: true}
+      weight: 20
+    - factor: "Files accessed are outside the user's normal project scope"
+      field_check: {field: scope_deviation, equals: true}
+      weight: 15
+  decrease:
+    - factor: "Download is associated with an approved data-migration project"
+      field_check: {field: approved_project, equals: true}
+      weight: -35

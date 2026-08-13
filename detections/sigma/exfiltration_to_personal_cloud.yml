@@ -1,0 +1,40 @@
+title: Upload to Unsanctioned Personal Cloud Storage
+id: exfiltration_to_personal_cloud
+status: stable
+description: >
+  Detects an upload to a cloud storage destination that is not on the
+  organization's sanctioned/managed list, a common exfiltration path
+  for data staged via mass download.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: data_access
+  product: cloud_saas
+detection:
+  selection:
+    event_type: data_access
+    action: upload
+  selection_unsanctioned:
+    destination_sanctioned: false
+  condition: selection and selection_unsanctioned
+level: high
+tags:
+  - attack.exfiltration
+  - attack.t1567.002
+falsepositives:
+  - Approved vendor/partner file sharing
+  - Personal backup of authorized work product
+  - Sanctioned BYOD cloud sync
+confidence:
+  base: 65
+  increase:
+    - factor: "Destination is a personal/unmanaged cloud storage account"
+      field_check: {field: destination_personal, equals: true}
+      weight: 15
+    - factor: "Upload volume matches or exceeds a recent mass-download event"
+      field_check: {field: volume_matches_download, equals: true}
+      weight: 15
+  decrease:
+    - factor: "Destination is an approved third-party vendor storage location"
+      field_check: {field: approved_vendor, equals: true}
+      weight: -35

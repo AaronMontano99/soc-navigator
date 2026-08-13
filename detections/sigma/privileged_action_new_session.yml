@@ -1,0 +1,40 @@
+title: Privilege-Sensitive Action Shortly After New Authentication
+id: privileged_action_new_session
+status: stable
+description: >
+  Detects a sensitive/privileged action (e.g. admin console access,
+  password reset for another user) performed within minutes of a new
+  authentication session, which is consistent with an attacker moving
+  quickly to abuse a freshly compromised session before it's noticed.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: privileged_action
+  product: identity_provider
+detection:
+  selection:
+    event_type: privileged_action
+  selection_recent_login:
+    minutes_since_login|lte: 15
+  condition: selection and selection_recent_login
+level: high
+tags:
+  - attack.privilege_escalation
+  - attack.t1078.004
+falsepositives:
+  - Legitimate privileged-user activity shortly after login
+  - Automated service-account tasks
+  - Scripted admin workflows
+confidence:
+  base: 55
+  increase:
+    - factor: "Action targets financial or otherwise sensitive systems"
+      field_check: {field: sensitive_target, equals: true}
+      weight: 20
+    - factor: "User does not normally perform this type of action"
+      field_check: {field: baseline_deviation, equals: true}
+      weight: 20
+  decrease:
+    - factor: "Action is consistent with the user's assigned admin role"
+      field_check: {field: user_role, equals: privileged}
+      weight: -30

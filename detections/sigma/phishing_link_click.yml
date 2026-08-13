@@ -1,0 +1,39 @@
+title: Malicious Phishing Link Clicked
+id: phishing_link_click
+status: stable
+description: >
+  Detects a user clicking a link in an email that has been assessed as
+  malicious, typically the initial-access step that precedes payload
+  execution in a phishing-driven intrusion.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: email
+  product: email_gateway
+detection:
+  selection:
+    event_type: email
+    action: link_click
+  selection_malicious:
+    link_reputation: malicious
+  condition: selection and selection_malicious
+level: high
+tags:
+  - attack.initial_access
+  - attack.t1566.002
+falsepositives:
+  - Security-awareness phishing simulations
+  - Sandboxed/isolated browsing sessions flagged as clicks
+confidence:
+  base: 70
+  increase:
+    - factor: "Sender domain was newly registered"
+      field_check: {field: sender_domain_new, equals: true}
+      weight: 10
+    - factor: "Email bypassed secure email gateway detonation analysis"
+      field_check: {field: gateway_bypassed, equals: true}
+      weight: 10
+  decrease:
+    - factor: "Link was opened inside an isolated browser/sandbox session"
+      field_check: {field: isolated_browsing, equals: true}
+      weight: -40
