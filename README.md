@@ -45,6 +45,28 @@ ATT&CK/NIST tabs, and ask the AI assistant a question about it. Everything on sc
 numbers, incident tables, detection rule text, coverage stats — comes from the live FastAPI app,
 not fixtures.
 
+### Testing it from other devices on your network
+
+By default `uvicorn` only binds to `localhost`. To reach the dashboard from another device on the
+same Wi-Fi/LAN (a phone, tablet, or second computer), bind to all interfaces instead:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Then find this machine's LAN IP (`ipconfig getifaddr en0` on macOS, `ipconfig` on Windows, `hostname -I`
+on Linux) and open `http://<that-ip>:8000` from the other device. Two things worth knowing before you
+do this:
+
+- **No authentication** — anyone on the same network who has the URL can use it, including running
+  Attack Lab scenarios.
+- **macOS Firewall** — the first time another device connects, macOS may prompt to allow incoming
+  connections for Python. Click **Allow**; if a device still can't reach it afterward, that's almost
+  always a firewall rule silently blocking it rather than the app itself.
+
+This is meant for quick local testing across your own devices, not for exposing the app to the
+internet.
+
 ## Why this exists
 
 Most portfolio security projects are a port scanner or a password cracker — offensive toy tooling
