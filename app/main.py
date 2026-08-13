@@ -15,9 +15,11 @@ from pydantic import BaseModel
 from app import store
 from app.ai import assistant
 from app.data.scenarios import list_scenarios
+from app.detection.registry import coverage_summary, rule_detail, rule_summary
 from app.mapping.attack import describe
 from app.mapping.nist_csf import build_checklist
 from app.models import Alert, Incident
+from app.pipeline import get_rules
 
 app = FastAPI(title="SOC Navigator", version="0.1.0")
 
@@ -56,32 +58,30 @@ def _serialize_incident_summary(incident: Incident) -> dict[str, Any]:
         "alert_count": len(incident.alerts),
         "created_at": incident.created_at,
         "updated_at": incident.updated_at,
+        "generated_at": store.generated_at(incident.scenario_id),
     }
 
 
 def _serialize_incident_detail(incident: Incident) -> dict[str, Any]:
     summary = _serialize_incident_summary(incident)
+    total_rules = len(get_rules())
     summary.update(
         {
             "alerts": [_serialize_alert(a) for a in incident.alerts],
-            "timeline": [
-                {
-                    "timestamp": a.event.timestamp,
-                    "summary": a.rule_title,
-                    "host": a.event.host,
-                    "user": a.event.user,
-                }
-                for a in incident.alerts
-            ],
+            "timeline": assistant.attack_progression(incident),
             "why_did_we_alert": assistant.why_did_we_alert(incident),
             "analyst": {
                 "why_critical": assistant.why_critical(incident),
                 "next_steps": assistant.next_steps(incident),
             },
-            "ciso": {
-                "summary": assistant.ciso_summary(incident),
-            },
+            "ciso": assistant.business_snapshot(incident),
             "nist_csf": build_checklist(incident),
+            "attack_chain": {
+                "steps": assistant.attack_progression(incident),
+                "mapped_techniques": len(incident.attack_techniques),
+                "total_techniques": total_rules,
+                "note": assistant.attack_chain_note(incident),
+            },
         }
     )
     return summary
@@ -98,7 +98,11 @@ def run_scenario_endpoint(scenario_id: str) -> dict[str, Any]:
         incidents = store.rebuild_scenario(scenario_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown scenario '{scenario_id}'")
-    return {"scenario_id": scenario_id, "incidents": [_serialize_incident_summary(i) for i in incidents]}
+    return {
+        "scenario_id": scenario_id,
+        "raw_events": store.raw_event_count_for(scenario_id),
+        "incidents": [_serialize_incident_summary(i) for i in incidents],
+    }
 
 
 @app.get("/api/incidents")
@@ -133,21 +137,86 @@ def ask_incident(incident_id: str, body: AskRequest) -> dict[str, str]:
 def get_dashboard() -> dict[str, Any]:
     incidents = store.all_incidents()
     total_alerts = sum(len(i.alerts) for i in incidents)
+    total_signals = sum(len(i.alerts) for i in incidents if i.status != "likely_benign")
     risk_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     for i in incidents:
         risk_counts[i.risk_level] = risk_counts.get(i.risk_level, 0) + 1
     investigated = sum(1 for i in incidents if i.status != "likely_benign")
     escalated = sum(1 for i in incidents if i.risk_level in ("high", "critical"))
+
+    by_scenario = {}
+    for i in incidents:
+        by_scenario.setdefault(i.scenario_id, {"raw_events": 0, "alerts": 0})
+        by_scenario[i.scenario_id]["alerts"] += len(i.alerts)
+    for scenario_id in by_scenario:
+        by_scenario[scenario_id]["raw_events"] = store.raw_event_count_for(scenario_id)
+
     return {
+        "raw_events": store.raw_event_count(),
         "alerts_generated": total_alerts,
+        "signals": total_signals,
         "incidents_total": len(incidents),
         "risk_counts": risk_counts,
         "investigated": investigated,
         "escalated": escalated,
+        "scenario_breakdown": [
+            {"scenario_id": sid, **counts} for sid, counts in by_scenario.items()
+        ],
         "active_incidents": [
             _serialize_incident_summary(i) for i in incidents if i.status != "likely_benign"
         ],
     }
+
+
+@app.get("/api/alerts")
+def get_alerts() -> dict[str, Any]:
+    incidents = store.all_incidents()
+    flattened: list[dict[str, Any]] = []
+    for incident in incidents:
+        for alert in incident.alerts:
+            flattened.append(
+                {
+                    "id": alert.id,
+                    "timestamp": alert.event.timestamp,
+                    "severity": alert.severity,
+                    "rule_id": alert.rule_id,
+                    "rule_title": alert.rule_title,
+                    "user": alert.event.user,
+                    "host": alert.event.host,
+                    "attack_techniques": [{"id": t, **describe(t)} for t in alert.attack_techniques],
+                    "confidence": alert.confidence,
+                    "incident_id": incident.id,
+                    "incident_status": incident.status,
+                }
+            )
+    flattened.sort(key=lambda a: a["timestamp"], reverse=True)
+    never_escalated = sum(len(i.alerts) for i in incidents if i.status == "likely_benign")
+    return {
+        "total_raw_events": store.raw_event_count(),
+        "total_alerts": len(flattened),
+        "total_signals": len(flattened) - never_escalated,
+        "total_incidents": len(incidents),
+        "never_escalated": never_escalated,
+        "alerts": flattened,
+    }
+
+
+@app.get("/api/detections")
+def get_detections() -> list[dict[str, Any]]:
+    return [rule_summary(r) for r in get_rules()]
+
+
+@app.get("/api/detections/{rule_id}")
+def get_detection(rule_id: str) -> dict[str, Any]:
+    for rule in get_rules():
+        if rule.get("id") == rule_id:
+            return rule_detail(rule)
+    raise HTTPException(status_code=404, detail=f"Unknown rule '{rule_id}'")
+
+
+@app.get("/api/coverage")
+def get_coverage() -> dict[str, Any]:
+    return coverage_summary(get_rules(), scenario_count=len(list_scenarios()))
 
 
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

@@ -17,15 +17,16 @@ Before showing anything, these are the questions I'd want answered in a real dea
 
 ## Demo flow
 
-1. **Start at the dashboard.** "This is what a day looks like before triage: alerts generated,
-   how many escalated, how many are open incidents right now."
-2. **Run the account-compromise scenario.** Show the raw event count collapsing into one
-   correlated incident: `143 alerts → 12 suspicious → 3 correlated incidents → 1 critical`.
-3. **Open the critical incident, Analyst View.** Walk the timeline, then open "Why Did We Alert?"
-   on the encoded-PowerShell alert — show the specific factors (unknown parent process, network
-   connection, first-seen-for-user) that pushed confidence to 97%.
-4. **Switch to CISO View on the same incident.** Same underlying data, translated: business
-   impact, recommended priority, current status — no technique IDs.
+1. **Start at Overview.** "This is what a day looks like before triage: alerts generated, how many
+   cleared the confidence threshold as signals, how many are open incidents right now."
+2. **Open Attack Lab and run the account-compromise scenario.** Watch raw telemetry collapse live
+   into one correlated critical incident, then click Investigate.
+3. **Open the incident, Analyst View, Detection tab.** Show the matched rule, the raw Sigma YAML,
+   and the specific confidence factors (unknown parent process, network connection,
+   first-seen-for-user) that pushed confidence to 97% — then the Timeline and ATT&CK tabs for the
+   full kill chain.
+4. **Switch to Security Leader View on the same incident.** Same underlying data, translated:
+   business risk, recommended priority, current status — no technique IDs.
 5. **Run the false-positive scenario.** Same detection signature as step 3, different context (IT
    admin, approved maintenance window, known script) → reviewed and closed as benign at ~3%
    confidence. This is the "reducing operational noise" conversation made concrete.

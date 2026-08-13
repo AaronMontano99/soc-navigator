@@ -4,24 +4,68 @@
   <meta charset="utf-8" />
   <title>SOC Navigator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="wrap">
-    <header class="topbar">
-      <div>
-        <h1>SOC <span>NAVIGATOR</span></h1>
-        <p class="tagline">Turn security noise into investigations.</p>
-      </div>
-      <div id="back-link-container"></div>
-    </header>
-
-    <div id="scenario-bar" class="scenario-bar"></div>
-    <div id="view-root">
-      <div class="empty-state">Loading…</div>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="wordmark">SOC <span class="accent">&#9670;</span> NAVIGATOR</span>
+      <span class="tagline">Turn security noise into investigations.</span>
     </div>
+    <div class="topbar-actions">
+      <span class="pill pill-status"><span class="dot dot-good"></span>SYNTHETIC ENVIRONMENT</span>
+      <button class="pill pill-button" id="topbar-ask-ai">&#9670; ASK AI</button>
+      <a class="pill pill-button" id="topbar-github" href="https://github.com/AaronMontano99/soc-navigator" target="_blank" rel="noopener">GITHUB &#8599;</a>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group">
+        <div class="nav-group-label">SOC</div>
+        <button class="nav-item" data-view="overview">Overview</button>
+        <button class="nav-item" data-view="incidents">Incidents</button>
+        <button class="nav-item" data-view="alerts">Alerts</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">DETECTION</div>
+        <button class="nav-item" data-view="rules">Rules</button>
+        <button class="nav-item" data-view="coverage">Coverage</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">LAB</div>
+        <button class="nav-item" data-view="lab">Attack Lab</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">LEARN</div>
+        <button class="nav-item" data-view="architecture">Architecture</button>
+        <button class="nav-item" data-view="about">About</button>
+      </div>
+      <div class="sidebar-footer">
+        <span class="dot dot-good"></span>
+        <div>
+          <div class="sidebar-footer-title">SYNTHETIC DATA</div>
+          <div class="sidebar-footer-body">All telemetry is generated. Not a production SIEM.</div>
+        </div>
+      </div>
+    </nav>
+
+    <main id="content" class="content"></main>
+
+    <aside class="ai-drawer" id="ai-drawer">
+      <div class="ai-drawer-header">
+        <div>
+          <span class="accent">&#9670;</span> <strong>AI INVESTIGATION ASSISTANT</strong>
+          <div class="ai-drawer-context" id="ai-drawer-context">Grounded in synthetic environment</div>
+        </div>
+        <button class="drawer-close" id="ai-drawer-close">&times;</button>
+      </div>
+      <div class="ai-drawer-body" id="ai-drawer-body"></div>
+    </aside>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

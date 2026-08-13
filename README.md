@@ -12,7 +12,38 @@ is malicious.
 It exists to answer one question end to end: **how does a pile of raw events actually become an
 incident an analyst can act on and a CISO can understand?**
 
-> 143 alerts generated → 12 suspicious → 3 correlated incidents → 1 critical investigation
+> 15+ alerts generated → 14 signals above threshold → 5 correlated incidents → 2 critical
+
+## Try it locally
+
+No paid services. No production telemetry. No required external security platform.
+
+```bash
+git clone https://github.com/AaronMontano99/soc-navigator.git
+cd soc-navigator
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+<details>
+<summary>Windows (PowerShell)</summary>
+
+```powershell
+git clone https://github.com/AaronMontano99/soc-navigator.git
+cd soc-navigator
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
+```
+</details>
+
+Open **http://localhost:8000**, launch a scenario from **Attack Lab**, and investigate the
+resulting incident — toggle Analyst / Security Leader view, walk the Timeline/Evidence/Detection/
+ATT&CK/NIST tabs, and ask the AI assistant a question about it. Everything on screen — dashboard
+numbers, incident tables, detection rule text, coverage stats — comes from the live FastAPI app,
+not fixtures.
 
 ## Why this exists
 
@@ -21,22 +52,6 @@ that proves you can write code, not that you understand how a SOC operates. SOC 
 opposite bet: it's built around the actual workflow a detection & response product has to support —
 telemetry → detection → correlation → prioritization → investigation → executive communication —
 and it's built to be run, not just read.
-
-## Quickstart
-
-Requires Python 3.10+. No API keys, no paid services, no external data.
-
-```bash
-git clone <this-repo>
-cd soc-navigator
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-Open **http://localhost:8000**. Click a scenario in the top bar to run it (or just browse — all
-five run once automatically on first load), then click into an incident to see the Analyst View,
-the CISO View, and the AI Investigation Assistant.
 
 ## How it works
 
@@ -47,7 +62,7 @@ flowchart LR
     C -->|Incident| M1[MITRE ATT&CK mapping]
     C -->|Incident| M2[NIST CSF 2.0 mapping]
     C -->|Incident| A[AI Investigation Assistant\nexplain / prioritize / suggest]
-    M1 --> UI[Dashboard: Analyst View + CISO View]
+    M1 --> UI[Analyst View + Security Leader View]
     M2 --> UI
     A --> UI
 ```
@@ -66,14 +81,22 @@ flowchart LR
 5. **AI Investigation Assistant** — `app/ai/assistant.py` explains *why* an incident is risky (or
    why it was downgraded to benign), suggests next investigation steps, and translates the
    incident into an executive summary. **The AI never decides whether something is malicious** —
-   that verdict already exists before the AI runs anything. See [`docs/ai-safety.md`](docs/ai-safety.md).
-6. **Dashboard** — a single-page vanilla JS/HTML frontend (no build step) serves both a **SOC
-   Analyst View** (raw events, detection rule, evidence chain, confidence factors, investigation
-   steps) and a **CISO View** (plain-language business-risk summary) for the same incident.
+   that verdict already exists before the AI runs anything. It's grounded in whichever incident is
+   currently open (`Grounded in <incident-id>` in the drawer) and answers free-text questions, not
+   just the suggested ones. See [`docs/ai-safety.md`](docs/ai-safety.md).
+6. **Console UI** — a full multi-page frontend (vanilla JS/HTML/CSS, no build step, no framework):
+   **Overview** (fleet-wide posture + signal funnel), **Incidents** (searchable/filterable table),
+   **Alerts** (every raw rule match before correlation), **Rules** (the actual Sigma YAML,
+   readable in-browser), **Coverage** (what's detected vs. deliberately not), **Attack Lab** (run
+   a scenario live and watch it become an incident), **Architecture** and **About** (how it's
+   built, and what it isn't). Incident detail gives the same underlying data as two audiences: a
+   **SOC Analyst View** (timeline, evidence, matched detection + confidence factors, ATT&CK chain,
+   NIST mapping) and a **Security Leader View** (plain-language business risk, no technical detail).
 
-## Attack Story Mode
+## Attack Lab
 
-Five synthetic scenarios exercise the full pipeline end to end:
+Five synthetic scenarios exercise the full pipeline end to end — click **Run Scenario** and watch
+raw telemetry become alerts become an incident, live:
 
 | Scenario | Story | Demonstrates |
 |---|---|---|
@@ -86,12 +109,13 @@ Five synthetic scenarios exercise the full pipeline end to end:
 That last scenario is the point: the same raw signature produces a **critical** incident in one
 context and a **reviewed, likely-benign** one in another, because the confidence score is a
 function of context, not just pattern-matching. That's the whole pitch behind "reducing
-operational noise."
+operational noise" — and you can watch it happen by running scenario 1 and scenario 5 back to back.
 
 ## Detection rules
 
 10 rules in `detections/sigma/`, each documenting its logic, MITRE technique, false-positive
-causes, and the specific contextual factors that raise or lower confidence:
+causes, and the specific contextual factors that raise or lower confidence. Browse them live in
+the **Rules** tab (full YAML, in-browser) or the table below:
 
 | Rule | Technique |
 |---|---|
@@ -109,24 +133,44 @@ causes, and the specific contextual factors that raise or lower confidence:
 See [`docs/detection-methodology.md`](docs/detection-methodology.md) for exactly what subset of
 the Sigma spec this engine implements (and doesn't).
 
+## API
+
+All read from the same in-memory incident store; nothing here duplicates detection logic in JS.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/dashboard` | Fleet-wide posture: raw events, alerts, signals, incidents, risk counts |
+| `GET /api/scenarios` / `POST /api/scenarios/{id}/run` | List / (re)run an Attack Lab scenario |
+| `GET /api/incidents` / `GET /api/incidents/{id}` | Incident list / full detail (analyst + leader data) |
+| `POST /api/incidents/{id}/ask` | AI Investigation Assistant, grounded in that incident |
+| `GET /api/alerts` | Every alert, flattened, before correlation |
+| `GET /api/detections` / `GET /api/detections/{id}` | Rule metadata / full rule detail + raw YAML |
+| `GET /api/coverage` | Rule/technique/tactic coverage, and what's deliberately not covered |
+
 ## Project structure
 
 ```
 soc-navigator/
 ├── app/
-│   ├── main.py              # FastAPI app + API routes, serves the frontend
-│   ├── models.py             # Event / Alert / Incident dataclasses
-│   ├── pipeline.py           # telemetry -> detection -> correlation
-│   ├── store.py               # in-memory incident store
-│   ├── detection/             # Sigma-subset rule engine
-│   ├── correlation/           # alert clustering + risk scoring
-│   ├── mapping/                # MITRE ATT&CK + NIST CSF 2.0
-│   ├── ai/                      # investigation assistant
-│   └── data/                     # scenario registry + synthetic telemetry
-├── detections/sigma/               # the 10 detection rules (YAML)
-├── frontend/                        # single-page dashboard (vanilla JS, no build step)
-├── docs/                              # architecture, methodology, AI safety, sales demo
-└── tests/                              # detection + correlation unit tests
+│   ├── main.py                # FastAPI app + all API routes, serves the frontend
+│   ├── models.py               # Event / Alert / Incident dataclasses
+│   ├── pipeline.py             # telemetry -> detection -> correlation
+│   ├── store.py                 # in-memory incident store
+│   ├── detection/                # Sigma-subset rule engine + rule registry (for the API)
+│   ├── correlation/               # alert clustering + risk scoring
+│   ├── mapping/                     # MITRE ATT&CK + NIST CSF 2.0
+│   ├── ai/                           # investigation assistant
+│   └── data/                          # scenario registry + synthetic telemetry
+├── detections/sigma/                    # the 10 detection rules (YAML)
+├── frontend/                              # console UI (vanilla JS, ES modules, no build step)
+│   ├── index.html                          # three-column shell
+│   ├── styles.css                           # design tokens + all component styles
+│   ├── api.js / helpers.js                   # fetch wrappers, formatting/escaping helpers
+│   ├── views.js                               # Overview/Incidents/Alerts/Rules/Coverage/Lab/Architecture/About
+│   ├── incident.js                             # incident detail: both views, all six analyst tabs
+│   └── app.js                                   # routing + the AI drawer
+├── docs/                                    # architecture, methodology, AI safety, design, sales demo
+└── tests/                                     # detection, correlation, and API tests
 ```
 
 ## Docs
@@ -134,6 +178,7 @@ soc-navigator/
 - [`docs/architecture.md`](docs/architecture.md) — component breakdown and data flow
 - [`docs/detection-methodology.md`](docs/detection-methodology.md) — the Sigma subset + confidence scoring model
 - [`docs/ai-safety.md`](docs/ai-safety.md) — why the AI explains but never adjudicates
+- [`docs/design.md`](docs/design.md) — the console UI's design tokens and layout
 - [`docs/threat-model.md`](docs/threat-model.md) — what this project is and isn't (synthetic data only)
 - [`docs/sales-demo.md`](docs/sales-demo.md) — a discovery-call-style demo script for this project
 

@@ -106,7 +106,16 @@ def correlate(alerts: list[Alert], scenario_id: str) -> list[Incident]:
     for cluster_alerts in clusters.values():
         cluster_alerts = sorted(cluster_alerts, key=lambda a: a.event.timestamp)
         users = sorted({a.event.user for a in cluster_alerts if a.event.user})
-        hosts = sorted({a.event.host for a in cluster_alerts if a.event.host})
+        host_set = {a.event.host for a in cluster_alerts if a.event.host}
+        # A network-connection alert's source is event.host; its destination
+        # (e.g. a lateral-movement target) is only in fields.dest_host — both
+        # are "affected assets" for the incident.
+        host_set |= {
+            a.event.fields.get("dest_host")
+            for a in cluster_alerts
+            if a.event.fields.get("dest_host")
+        }
+        hosts = sorted(host_set)
         technique_ids: list[str] = []
         for a in cluster_alerts:
             for t in a.attack_techniques:

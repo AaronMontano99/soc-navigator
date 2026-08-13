@@ -9,21 +9,30 @@ scenario's incidents, simulating a fresh detection pass.
 
 from __future__ import annotations
 
-from app.data.scenarios import list_scenarios
+from datetime import datetime, timezone
+
+from app.data.scenarios import list_scenarios, load_telemetry
 from app.models import Incident
 from app.pipeline import run_scenario
 
 _incidents_by_scenario: dict[str, list[Incident]] = {}
+_generated_at_by_scenario: dict[str, str] = {}
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _build_all() -> None:
     for scenario in list_scenarios():
         _incidents_by_scenario[scenario["id"]] = run_scenario(scenario["id"])
+        _generated_at_by_scenario[scenario["id"]] = _now()
 
 
 def rebuild_scenario(scenario_id: str) -> list[Incident]:
     incidents = run_scenario(scenario_id)
     _incidents_by_scenario[scenario_id] = incidents
+    _generated_at_by_scenario[scenario_id] = _now()
     return incidents
 
 
@@ -43,3 +52,20 @@ def get_incident(incident_id: str) -> Incident | None:
         if incident.id == incident_id:
             return incident
     return None
+
+
+def generated_at(scenario_id: str) -> str | None:
+    if not _generated_at_by_scenario:
+        _build_all()
+    return _generated_at_by_scenario.get(scenario_id)
+
+
+def raw_event_count() -> int:
+    """Total synthetic telemetry events across every scenario that has been run."""
+    if not _incidents_by_scenario:
+        _build_all()
+    return sum(len(load_telemetry(sid)) for sid in _incidents_by_scenario)
+
+
+def raw_event_count_for(scenario_id: str) -> int:
+    return len(load_telemetry(scenario_id))

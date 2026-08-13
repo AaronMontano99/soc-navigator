@@ -3,6 +3,10 @@ uvicorn[standard]>=0.29
 pyyaml>=6.0
 pydantic>=2.6
 
+# Test suite (pytest tests/)
+pytest>=8.0
+httpx>=0.27
+
 # Optional: enables live LLM chat in the AI Investigation Assistant
 # (falls back to deterministic templates if not installed / no API key set)
 # anthropic>=0.40

@@ -89,7 +89,18 @@ def build_checklist(incident: "Incident") -> dict[str, list[dict[str, str]]]:
     else:
         if incident.users:
             checklist["RESPOND"].append(
-                {"item": f"Account containment recommended for {', '.join(incident.users)}", "status": "pending"}
+                {"item": f"Validate account ownership for {', '.join(incident.users)}", "status": "pending"}
+            )
+        if incident.hosts:
+            checklist["RESPOND"].append(
+                {"item": f"Investigate affected endpoint(s): {', '.join(incident.hosts)}", "status": "pending"}
+            )
+        source_ips = sorted(
+            {a.event.fields.get("source_ip") for a in incident.alerts if a.event.fields.get("source_ip")}
+        )
+        if source_ips:
+            checklist["RESPOND"].append(
+                {"item": f"Review active sessions for {', '.join(source_ips)}", "status": "pending"}
             )
         if technique_ids & _CONTAINMENT_TECHNIQUES:
             checklist["RESPOND"].append(
