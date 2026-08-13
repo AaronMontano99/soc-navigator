@@ -29,7 +29,10 @@ function riskBadge(level) {
 
 function techniqueChips(techniques) {
   return techniques
-    .map((t) => `<span class="technique-chip">${escapeHtml(t.id)} — ${escapeHtml(t.name)}</span>`)
+    .map(
+      (t) =>
+        `<span class="technique-chip">${escapeHtml(t.id)}${t.name ? " — " + escapeHtml(t.name) : ""}</span>`
+    )
     .join(" ");
 }
 
