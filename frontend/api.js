@@ -18,7 +18,7 @@ export const api = {
   dashboard: () => request("/dashboard"),
   scenarios: () => request("/scenarios"),
   runScenario: (id) => request(`/scenarios/${id}/run`, { method: "POST" }),
-  incidents: (scenarioId) => request(`/incidents${scenarioId ? `?scenario_id=${scenarioId}` : ""}`),
+  incidents: () => request("/incidents"),
   incident: (id) => request(`/incidents/${id}`),
   ask: (id, question) =>
     request(`/incidents/${id}/ask`, {

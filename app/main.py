@@ -122,11 +122,12 @@ def run_scenario_endpoint(scenario_id: str) -> dict[str, Any]:
 
 
 @app.get("/api/incidents")
-def get_incidents(scenario_id: str | None = None) -> list[dict[str, Any]]:
-    incidents = store.all_incidents()
-    if scenario_id:
-        incidents = [i for i in incidents if i.scenario_id == scenario_id]
-    return [_serialize_incident_summary(i) for i in incidents]
+def get_incidents() -> list[dict[str, Any]]:
+    """Incidents from your real network (last scan). Attack Lab's synthetic
+    incidents are reached directly by ID from the Attack Lab run response —
+    see POST /api/scenarios/{id}/run — deliberately not listed here, so this
+    view always reflects your actual environment, never the demo data."""
+    return [_serialize_incident_summary(i) for i in store.live_incidents()]
 
 
 @app.get("/api/incidents/{incident_id}")
@@ -151,7 +152,11 @@ def ask_incident(incident_id: str, body: AskRequest) -> dict[str, str]:
 
 @app.get("/api/dashboard")
 def get_dashboard() -> dict[str, Any]:
-    incidents = store.all_incidents()
+    """Your real network's posture, from the last scan. There is no synthetic
+    data in this response — before any scan has run, every count is honestly
+    zero rather than backfilled with demo numbers."""
+    meta = store.live_scan_meta()
+    incidents = store.live_incidents()
     total_alerts = sum(len(i.alerts) for i in incidents)
     total_signals = sum(len(i.alerts) for i in incidents if i.status != "likely_benign")
     risk_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
@@ -160,24 +165,23 @@ def get_dashboard() -> dict[str, Any]:
     investigated = sum(1 for i in incidents if i.status != "likely_benign")
     escalated = sum(1 for i in incidents if i.risk_level in ("high", "critical"))
 
-    by_scenario = {}
+    device_breakdown: dict[str, int] = {}
     for i in incidents:
-        by_scenario.setdefault(i.scenario_id, {"raw_events": 0, "alerts": 0})
-        by_scenario[i.scenario_id]["alerts"] += len(i.alerts)
-    for scenario_id in by_scenario:
-        by_scenario[scenario_id]["raw_events"] = store.raw_event_count_for(scenario_id)
+        for host in i.hosts:
+            device_breakdown[host] = device_breakdown.get(host, 0) + len(i.alerts)
 
     return {
-        "raw_events": store.raw_event_count(),
+        "has_scanned": meta is not None,
+        "subnet": meta["subnet"] if meta else None,
+        "scanned_at": meta["scanned_at"] if meta else None,
+        "devices_scanned": len(meta["devices"]) if meta else 0,
         "alerts_generated": total_alerts,
         "signals": total_signals,
         "incidents_total": len(incidents),
         "risk_counts": risk_counts,
         "investigated": investigated,
         "escalated": escalated,
-        "scenario_breakdown": [
-            {"scenario_id": sid, **counts} for sid, counts in by_scenario.items()
-        ],
+        "device_breakdown": [{"ip": ip, "alert_count": c} for ip, c in device_breakdown.items()],
         "active_incidents": [
             _serialize_incident_summary(i) for i in incidents if i.status != "likely_benign"
         ],
@@ -186,7 +190,9 @@ def get_dashboard() -> dict[str, Any]:
 
 @app.get("/api/alerts")
 def get_alerts() -> dict[str, Any]:
-    incidents = store.all_incidents()
+    """Every finding from your last network scan, before correlation."""
+    meta = store.live_scan_meta()
+    incidents = store.live_incidents()
     flattened: list[dict[str, Any]] = []
     for incident in incidents:
         for alert in incident.alerts:
@@ -208,7 +214,8 @@ def get_alerts() -> dict[str, Any]:
     flattened.sort(key=lambda a: a["timestamp"], reverse=True)
     never_escalated = sum(len(i.alerts) for i in incidents if i.status == "likely_benign")
     return {
-        "total_raw_events": store.raw_event_count(),
+        "has_scanned": meta is not None,
+        "devices_scanned": len(meta["devices"]) if meta else 0,
         "total_alerts": len(flattened),
         "total_signals": len(flattened) - never_escalated,
         "total_incidents": len(incidents),

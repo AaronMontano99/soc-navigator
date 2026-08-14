@@ -61,20 +61,36 @@ function setEnvironmentBadge(mode) {
   }
 }
 
+// Overview/Incidents/Alerts/My Network are all live-network views now;
+// only Attack Lab is synthetic. An incident reached without an explicit
+// `from` (i.e. from Overview/Incidents/Alerts) defaults to live/"incidents"
+// — only Attack Lab's Investigate button passes from:"lab" to mark an
+// incident as synthetic.
+function incidentOrigin(params) {
+  if (params.from === "lab") return { sidebarView: "lab", badge: "synthetic" };
+  if (params.from === "live") return { sidebarView: "live", badge: "live" };
+  return { sidebarView: "incidents", badge: "live" };
+}
+
 async function navigate(view, params = {}) {
   state.view = view;
   state.params = params;
   ctx.pendingRuleId = params.ruleId || null;
 
-  const incidentParentView = params.from === "live" ? "live" : "incidents";
+  const origin = view === "incident" ? incidentOrigin(params) : null;
   sidebar.querySelectorAll(".nav-item").forEach((item) => {
-    item.classList.toggle("active", item.dataset.view === view || (view === "incident" && item.dataset.view === incidentParentView));
+    item.classList.toggle("active", item.dataset.view === view || (origin && item.dataset.view === origin.sidebarView));
   });
 
-  if (view !== "incident") {
-    setEnvironmentBadge(view === "live" ? "live" : "synthetic");
+  if (view === "incident") {
+    setEnvironmentBadge(origin.badge);
   } else {
-    setEnvironmentBadge(incidentParentView === "live" ? "live" : "synthetic");
+    // Rules/Coverage describe the synthetic Sigma rule library specifically;
+    // Attack Lab is the synthetic simulator. Everything else on the network-
+    // facing side of the app (Overview/Incidents/Alerts/My Network) — plus
+    // the static Architecture/About pages, which aren't a data claim either
+    // way — defaults to the live badge.
+    setEnvironmentBadge(["lab", "rules", "coverage"].includes(view) ? "synthetic" : "live");
   }
 
   window.scrollTo({ top: 0 });
@@ -99,7 +115,7 @@ async function navigate(view, params = {}) {
     case "about":
       return renderAbout(content);
     case "incident":
-      return renderIncident(content, ctx, params.id);
+      return renderIncident(content, ctx, params.id, params.from);
     default:
       return renderOverview(content, ctx);
   }

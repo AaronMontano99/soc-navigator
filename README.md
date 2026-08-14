@@ -12,17 +12,15 @@ is malicious.
 It exists to answer one question end to end: **how does a pile of raw events actually become an
 incident an analyst can act on and a CISO can understand?**
 
-It ships in two modes, clearly labeled and never mixed together:
+**Overview, Incidents, and Alerts show your real network** — they're empty until you run a scan
+from **My Network**, and never contain fabricated data. **Attack Lab** is a separate, self-contained
+synthetic simulator (five fabricated attack scenarios) for learning and demoing the pipeline without
+touching your network at all — its incidents are reached directly from its own "Investigate" button,
+not mixed into the real views. A badge in the top bar and sidebar always says which one you're
+looking at, so the two are never ambiguous.
 
-- **Attack Lab** — five synthetic attack scenarios (fabricated telemetry) that exercise the full
-  pipeline against realistic-looking data, for learning and demoing.
-- **My Network** — a real, working scanner: it discovers devices on *your own local network* and
-  checks a curated list of common ports for exposed services, running the findings through the
-  same detection/correlation/AI pipeline. This one produces **genuine insight about your actual
-  network**, not a simulation. See [Live Network Scanning](#live-network-scanning) below for
-  exactly what it does and doesn't see.
-
-> 15+ alerts generated → 14 signals above threshold → 5 correlated incidents → 2 critical
+> Raw findings → signals above threshold → correlated incidents → prioritized by risk — the same
+> funnel whether it's your real network (My Network) or a synthetic scenario (Attack Lab).
 
 ## Try it locally
 
@@ -49,11 +47,12 @@ python -m uvicorn app.main:app --reload
 ```
 </details>
 
-Open **http://localhost:8000**, launch a scenario from **Attack Lab**, and investigate the
-resulting incident — toggle Analyst / Security Leader view, walk the Timeline/Evidence/Detection/
-ATT&CK/NIST tabs, and ask the AI assistant a question about it. Everything on screen — dashboard
-numbers, incident tables, detection rule text, coverage stats — comes from the live FastAPI app,
-not fixtures. Then try **My Network** in the sidebar for a real scan of your own network.
+Open **http://localhost:8000**. **Overview** starts empty — click **Scan My Network** (there or
+under **My Network**) to see your own devices and any exposed-service findings. Separately, try
+**Attack Lab** to run a synthetic scenario and investigate its resulting incident — toggle
+Analyst / Security Leader view, walk the Timeline/Evidence/Detection/ATT&CK/NIST tabs, and ask the
+AI assistant a question about it. Everything on screen — dashboard numbers, incident tables,
+detection rule text, coverage stats — comes from the live FastAPI app, not fixtures.
 
 ### Testing it from other devices on your network
 
@@ -116,17 +115,18 @@ flowchart LR
    that verdict already exists before the AI runs anything. It's grounded in whichever incident is
    currently open (`Grounded in <incident-id>` in the drawer) and answers free-text questions, not
    just the suggested ones. See [`docs/ai-safety.md`](docs/ai-safety.md).
-6. **Console UI** — a full multi-page frontend (vanilla JS/HTML/CSS, no build step, no framework):
-   **Overview** (fleet-wide posture + signal funnel), **Incidents** (searchable/filterable table),
-   **Alerts** (every raw rule match before correlation), **Rules** (the actual Sigma YAML,
-   readable in-browser), **Coverage** (what's detected vs. deliberately not), **Attack Lab** (run
-   a scenario live and watch it become an incident), **My Network** (a real scan of your own LAN),
-   **Architecture** and **About** (how it's built, and what it isn't). Incident detail gives the
-   same underlying data as two audiences: a **SOC Analyst View** (timeline, evidence, matched
-   detection + confidence factors, ATT&CK chain, NIST mapping) and a **Security Leader View**
-   (plain-language business risk, no technical detail). A pill in the top bar and sidebar always
-   says which mode you're looking at — **Synthetic Environment** or **Live Network — Real Data** —
-   so the two are never ambiguous.
+6. **Console UI** — a full multi-page frontend (vanilla JS/HTML/CSS, no build step, no framework).
+   Live-network pages: **Overview** (your network's posture + signal funnel), **Incidents**
+   (searchable/filterable table of your findings), **Alerts** (every raw finding before
+   correlation), **My Network** (device inventory + scan control). Synthetic pages: **Attack Lab**
+   (run a scenario and watch it become an incident), **Rules** (the actual Sigma YAML for the
+   synthetic rule set, readable in-browser), **Coverage** (what that rule set detects vs.
+   deliberately not). Reference pages: **Architecture** and **About**. Incident detail gives the
+   same underlying data as two audiences regardless of which side it came from: a **SOC Analyst
+   View** (timeline, evidence, matched detection + confidence factors, ATT&CK chain, NIST mapping)
+   and a **Security Leader View** (plain-language business risk, no technical detail). A pill in
+   the top bar and sidebar always says which mode you're looking at — **Synthetic Environment** or
+   **Live Network — Real Data**.
 
 ## Attack Lab
 
@@ -145,6 +145,11 @@ That last scenario is the point: the same raw signature produces a **critical** 
 context and a **reviewed, likely-benign** one in another, because the confidence score is a
 function of context, not just pattern-matching. That's the whole pitch behind "reducing
 operational noise" — and you can watch it happen by running scenario 1 and scenario 5 back to back.
+
+Attack Lab is intentionally self-contained: after a run, its own **Investigate** button opens the
+resulting incident directly. Synthetic incidents are never listed in the Overview/Incidents/Alerts
+pages — those are reserved for your real network — so there's no path where demo data and real
+findings end up in the same table.
 
 ## Live Network Scanning
 
@@ -204,14 +209,15 @@ All read from the same in-memory incident store; nothing here duplicates detecti
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/dashboard` | Fleet-wide posture: raw events, alerts, signals, incidents, risk counts |
-| `GET /api/scenarios` / `POST /api/scenarios/{id}/run` | List / (re)run an Attack Lab scenario |
-| `GET /api/incidents` / `GET /api/incidents/{id}` | Incident list / full detail (analyst + leader data) |
-| `POST /api/incidents/{id}/ask` | AI Investigation Assistant, grounded in that incident |
-| `GET /api/alerts` | Every alert, flattened, before correlation |
-| `GET /api/detections` / `GET /api/detections/{id}` | Rule metadata / full rule detail + raw YAML |
-| `GET /api/coverage` | Rule/technique/tactic coverage, and what's deliberately not covered |
+| `GET /api/dashboard` | Your network's posture from the last scan: devices, findings, signals, incidents, risk counts |
+| `GET /api/incidents` | Incident list — **live only**, from your last scan |
+| `GET /api/alerts` | Every finding, flattened, before correlation — **live only** |
 | `POST /api/live/scan` / `GET /api/live/last` | Run (or re-fetch) a real scan of your local network |
+| `GET /api/incidents/{id}` | Full incident detail (analyst + leader data) — works for either live or synthetic |
+| `POST /api/incidents/{id}/ask` | AI Investigation Assistant, grounded in that incident |
+| `GET /api/scenarios` / `POST /api/scenarios/{id}/run` | List / run an Attack Lab (synthetic) scenario — response includes its resulting incidents directly |
+| `GET /api/detections` / `GET /api/detections/{id}` | Synthetic rule metadata / full rule detail + raw YAML (also resolves live rule IDs) |
+| `GET /api/coverage` | Synthetic rule set's technique/tactic coverage, and what's deliberately not covered |
 
 ## Project structure
 

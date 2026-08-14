@@ -11,7 +11,13 @@ import {
   errorState,
 } from "./helpers.js";
 
-export async function renderIncident(container, ctx, incidentId) {
+const BACK_TARGETS = {
+  lab: { view: "lab", label: "BACK TO ATTACK LAB" },
+  live: { view: "live", label: "BACK TO MY NETWORK" },
+  incidents: { view: "incidents", label: "BACK TO INCIDENTS" },
+};
+
+export async function renderIncident(container, ctx, incidentId, from) {
   container.innerHTML = loadingState("LOADING INCIDENT…");
   let detail;
   try {
@@ -23,11 +29,12 @@ export async function renderIncident(container, ctx, incidentId) {
 
   ctx.setAiContext(detail);
 
+  const back = BACK_TARGETS[from] || BACK_TARGETS.incidents;
   const view = { tab: "summary", presentation: "analyst" };
 
   function draw() {
     container.innerHTML = `
-      <button class="back-link" id="back-to-incidents">&larr; BACK TO INCIDENTS</button>
+      <button class="back-link" id="back-to-incidents">&larr; ${back.label}</button>
       <section class="panel incident-header sev-border-${detail.risk_level}">
         <div class="incident-header-top">
           <div>
@@ -67,7 +74,7 @@ export async function renderIncident(container, ctx, incidentId) {
       }
     `;
 
-    container.querySelector("#back-to-incidents").addEventListener("click", () => ctx.navigate("incidents"));
+    container.querySelector("#back-to-incidents").addEventListener("click", () => ctx.navigate(back.view));
     container.querySelector("#ask-ai-btn").addEventListener("click", () => ctx.openAiDrawer());
     container.querySelectorAll("[data-presentation]").forEach((btn) => {
       btn.addEventListener("click", () => {

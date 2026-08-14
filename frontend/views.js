@@ -53,6 +53,20 @@ function miniBars(values) {
 
 // ---------- Overview ----------
 
+async function runScanFromOverview(container, ctx) {
+  const btn = container.querySelector("#overview-scan-btn");
+  if (btn) {
+    btn.textContent = "SCANNING…";
+    btn.disabled = true;
+  }
+  try {
+    await api.liveScan();
+  } catch (e) {
+    // fall through — renderOverview will just show whatever state resulted
+  }
+  renderOverview(container, ctx);
+}
+
 export async function renderOverview(container, ctx) {
   container.innerHTML = loadingState();
   let data;
@@ -63,8 +77,27 @@ export async function renderOverview(container, ctx) {
     return;
   }
 
-  const rawEventsBars = data.scenario_breakdown.map((s) => s.raw_events);
-  const alertsBars = data.scenario_breakdown.map((s) => s.alerts);
+  if (!data.has_scanned) {
+    container.innerHTML = `
+      <div class="content-header">
+        <div>
+          <h2>Security Operations</h2>
+          <p class="content-subtitle">Your network's real security posture — no scan has been run yet this session.</p>
+        </div>
+      </div>
+      <section class="panel">
+        <div class="empty-state">
+          <div class="state-title">NO SCAN YET</div>
+          <div class="state-subtitle">Run a scan to discover devices on your network and check for exposed services.</div>
+          <button class="btn-run" id="overview-scan-btn" style="margin-top:14px;">SCAN MY NETWORK</button>
+        </div>
+      </section>
+    `;
+    container.querySelector("#overview-scan-btn").addEventListener("click", () => runScanFromOverview(container, ctx));
+    return;
+  }
+
+  const deviceBars = data.device_breakdown.map((d) => d.alert_count);
 
   const rows = data.active_incidents.length
     ? data.active_incidents
@@ -81,7 +114,7 @@ export async function renderOverview(container, ctx) {
       </tr>`
         )
         .join("")
-    : `<tr><td colspan="7">${emptyState("NO INCIDENTS YET", "Run a scenario from Attack Lab to populate this view.")}</td></tr>`;
+    : `<tr><td colspan="7">${emptyState("NO ACTIVE INCIDENTS", "Nothing on your network needs attention right now.")}</td></tr>`;
 
   const biggest = data.active_incidents.reduce((max, i) => Math.max(max, i.alert_count), 0);
 
@@ -89,13 +122,14 @@ export async function renderOverview(container, ctx) {
     <div class="content-header">
       <div>
         <h2>Security Operations</h2>
-        <p class="content-subtitle">Synthetic SOC environment · ${data.scenario_breakdown.length} scenario(s) executed</p>
+        <p class="content-subtitle">${escapeHtml(data.subnet)} &middot; last scanned ${relativeTime(data.scanned_at)} ago &middot; ${data.devices_scanned} device(s) found</p>
       </div>
+      <button class="btn-run" id="overview-scan-btn">RESCAN</button>
     </div>
 
     <div class="stat-grid stat-grid-4">
-      ${statTile("Raw Events", data.raw_events)}
-      ${statTile("Alerts", data.alerts_generated)}
+      ${statTile("Devices Scanned", data.devices_scanned)}
+      ${statTile("Findings", data.alerts_generated)}
       ${statTile("Incidents", data.incidents_total)}
       ${statTile("Critical", data.risk_counts.critical, "critical")}
     </div>
@@ -103,9 +137,9 @@ export async function renderOverview(container, ctx) {
     ${panel(
       "Signal Funnel — From Noise to Investigation",
       `<div class="funnel">
-        <div class="funnel-stage"><div class="funnel-value">${data.raw_events}</div><div class="funnel-label">Raw Events</div>${miniBars(rawEventsBars)}</div>
+        <div class="funnel-stage"><div class="funnel-value">${data.devices_scanned}</div><div class="funnel-label">Devices</div></div>
         <div class="funnel-arrow">&rarr;</div>
-        <div class="funnel-stage"><div class="funnel-value accent-high">${data.alerts_generated}</div><div class="funnel-label">Alerts</div>${miniBars(alertsBars)}</div>
+        <div class="funnel-stage"><div class="funnel-value accent-high">${data.alerts_generated}</div><div class="funnel-label">Findings</div>${miniBars(deviceBars)}</div>
         <div class="funnel-arrow">&rarr;</div>
         <div class="funnel-stage"><div class="funnel-value">${data.signals}</div><div class="funnel-label">Signals</div><div class="funnel-sub">confidence above threshold</div></div>
         <div class="funnel-arrow">&rarr;</div>
@@ -122,12 +156,13 @@ export async function renderOverview(container, ctx) {
       )}
       ${panel(
         "Why Correlation Matters",
-        `<p>${biggest} separate alerts may belong to one attack chain.</p>
+        `<p>${biggest} separate finding(s) may belong to one device.</p>
          <p class="dim">soc-navigator groups related activity around shared identities, endpoints, and time windows so an analyst investigates one coherent incident rather than disconnected alerts.</p>
          <div class="tag-row"><span class="tag">shared identity</span><span class="tag">shared host</span><span class="tag">time window</span></div>`
       )}
     </div>
   `;
+  container.querySelector("#overview-scan-btn").addEventListener("click", () => runScanFromOverview(container, ctx));
 
   container.querySelectorAll("[data-incident]").forEach((row) => {
     row.addEventListener("click", () => ctx.navigate("incident", { id: row.dataset.incident }));
@@ -173,7 +208,10 @@ export async function renderIncidents(container, ctx) {
         </tr>`
           )
           .join("")
-      : `<tr><td colspan="7">${emptyState("NO MATCHING INCIDENTS")}</td></tr>`;
+      : `<tr><td colspan="7">${emptyState(
+          incidents.length === 0 ? "NO SCAN YET" : "NO MATCHING INCIDENTS",
+          incidents.length === 0 ? "Run a scan from My Network to populate this view." : undefined
+        )}</td></tr>`;
     container.querySelector("#incidents-table-body").innerHTML = rows;
     container.querySelectorAll("[data-incident]").forEach((row) => {
       row.addEventListener("click", () => ctx.navigate("incident", { id: row.dataset.incident }));
@@ -186,7 +224,7 @@ export async function renderIncidents(container, ctx) {
     <div class="content-header">
       <div>
         <h2>Incidents</h2>
-        <p class="content-subtitle">${incidents.length} correlated incident(s) · ${totalAlerts} constituent alert(s)</p>
+        <p class="content-subtitle">${incidents.length} correlated incident(s) from your network · ${totalAlerts} constituent alert(s)</p>
       </div>
       <div class="toolbar">
         <input type="text" id="incidents-search" placeholder="Search incidents…" />
@@ -251,7 +289,10 @@ export async function renderAlerts(container, ctx) {
         </tr>`
           )
           .join("")
-      : `<tr><td colspan="7">${emptyState("NO MATCHING ALERTS")}</td></tr>`;
+      : `<tr><td colspan="7">${emptyState(
+          data.alerts.length === 0 ? "NO SCAN YET" : "NO MATCHING ALERTS",
+          data.alerts.length === 0 ? "Run a scan from My Network to populate this view." : undefined
+        )}</td></tr>`;
     container.querySelector("#alerts-table-body").innerHTML = rows;
     container.querySelectorAll("[data-incident]").forEach((link) => {
       link.addEventListener("click", () => ctx.navigate("incident", { id: link.dataset.incident }));
@@ -262,7 +303,7 @@ export async function renderAlerts(container, ctx) {
     <div class="content-header">
       <div>
         <h2>Alerts</h2>
-        <p class="content-subtitle">Every rule match, before correlation. Most of this is noise.</p>
+        <p class="content-subtitle">Every finding from your network, before correlation. Most of this is noise.</p>
       </div>
       <div class="toolbar">
         <input type="text" id="alerts-search" placeholder="Search alerts…" />
@@ -547,7 +588,7 @@ async function runScenario(container, ctx, scenarioId, scenarios) {
     : `<p class="dim">No incident was produced by this run.</p>`;
   if (topIncident) {
     simPanel.querySelector("#sim-investigate").addEventListener("click", () => {
-      ctx.navigate("incident", { id: topIncident.id });
+      ctx.navigate("incident", { id: topIncident.id, from: "lab" });
     });
   }
 }

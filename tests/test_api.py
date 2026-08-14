@@ -5,19 +5,30 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_dashboard_includes_raw_events_and_signals():
+def test_dashboard_reflects_live_network_not_synthetic_demo():
+    # Dashboard/Incidents/Alerts are deliberately live-only -- before any
+    # scan, everything is honestly zero rather than backfilled with the
+    # Attack Lab's demo numbers.
     r = client.get("/api/dashboard")
     assert r.status_code == 200
     body = r.json()
-    assert body["raw_events"] >= body["alerts_generated"] >= body["signals"]
-    assert "scenario_breakdown" in body
+    assert body["alerts_generated"] >= body["signals"] >= 0
+    assert "has_scanned" in body and "device_breakdown" in body
 
 
-def test_alerts_endpoint_flattens_all_alerts():
+def test_incidents_endpoint_is_live_only():
+    r = client.get("/api/incidents")
+    assert r.status_code == 200
+    body = r.json()
+    assert all(i["source"] == "live" for i in body)
+
+
+def test_alerts_endpoint_flattens_live_alerts_only():
     r = client.get("/api/alerts")
     assert r.status_code == 200
     body = r.json()
     assert body["total_alerts"] == len(body["alerts"])
+    assert "has_scanned" in body
     if body["alerts"]:
         first = body["alerts"][0]
         assert {"rule_title", "incident_id", "confidence", "host"} <= first.keys()
@@ -52,8 +63,10 @@ def test_coverage_endpoint_matches_rule_count():
 
 
 def test_account_compromise_incident_includes_destination_host():
-    incidents = client.get("/api/incidents?scenario_id=account-compromise").json()
-    incident = incidents[0]
+    # Synthetic (Attack Lab) incidents are reached by ID from the run
+    # response, not from GET /api/incidents -- that endpoint is live-only.
+    run = client.post("/api/scenarios/account-compromise/run").json()
+    incident = run["incidents"][0]
     detail = client.get(f"/api/incidents/{incident['id']}").json()
     assert "FINANCE-WS03" in detail["hosts"]
     assert "Potential" in detail["ciso"]["headline"]
