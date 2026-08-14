@@ -64,3 +64,4 @@ class Incident:
     tactics: list[str]
     created_at: str
     updated_at: str
+    source: str = "synthetic"  # "synthetic" (Attack Lab) | "live" (real network scan)

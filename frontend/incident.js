@@ -319,6 +319,13 @@ function wireDetectionButtons(container, detail, ctx) {
 
 function renderAttackTab(detail) {
   const chain = detail.attack_chain;
+  if (detail.source === "live") {
+    return `
+      <section class="panel">
+        <div class="detail-label">MITRE ATT&amp;CK MAPPING</div>
+        <div class="chain-note">&#9670; ${escapeHtml(chain.note)}</div>
+      </section>`;
+  }
   const rows = chain.steps
     .map(
       (s, i) => `

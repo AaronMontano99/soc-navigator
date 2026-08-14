@@ -34,7 +34,50 @@ _CREDENTIAL_TECHNIQUES = {"T1003.001", "T1110.004"}
 _CONTAINMENT_TECHNIQUES = {"T1021.002", "T1003.001", "T1486", "T1567.002"}
 
 
+def _build_live_checklist(incident: "Incident") -> dict[str, list[dict[str, str]]]:
+    """Live (real network scan) findings have no ATT&CK techniques to map — they're
+    exposure/hygiene facts about a real device, not an attack technique observed. This
+    checklist speaks in those terms (remediation, not containment) instead of forcing
+    the synthetic-incident wording onto them.
+    """
+    checklist: dict[str, list[dict[str, str]]] = {fn: [] for fn in FUNCTIONS}
+    rule_titles = sorted({a.rule_title for a in incident.alerts})
+
+    checklist["GOVERN"].append({"item": "Scan logged for this session", "status": "done"})
+    checklist["GOVERN"].append(
+        {"item": f"Escalation criteria applied per risk level ({incident.risk_level.upper()})", "status": "done"}
+    )
+    if incident.hosts:
+        checklist["IDENTIFY"].append(
+            {"item": f"Device inventoried: {', '.join(incident.hosts)}", "status": "done"}
+        )
+    checklist["PROTECT"].append(
+        {"item": f"Exposure surface reviewed: {len(incident.alerts)} finding(s) on this device", "status": "done"}
+    )
+    for title in rule_titles:
+        checklist["DETECT"].append({"item": f"Finding identified: {title}", "status": "done"})
+    if len(incident.alerts) > 1:
+        checklist["DETECT"].append(
+            {"item": f"Findings correlated to one device across {len(incident.alerts)} results", "status": "done"}
+        )
+    if incident.status == "likely_benign":
+        checklist["RESPOND"].append(
+            {"item": "No response action required — reviewed, no remediation needed", "status": "done"}
+        )
+        checklist["RECOVER"].append({"item": "No recovery action required", "status": "not_applicable"})
+    else:
+        for title in rule_titles:
+            checklist["RESPOND"].append({"item": f"Review and remediate: {title}", "status": "pending"})
+        checklist["RECOVER"].append(
+            {"item": "Re-scan after remediation to confirm the finding is resolved", "status": "pending"}
+        )
+    return checklist
+
+
 def build_checklist(incident: "Incident") -> dict[str, list[dict[str, str]]]:
+    if incident.source == "live":
+        return _build_live_checklist(incident)
+
     technique_ids = set(incident.attack_techniques)
     checklist: dict[str, list[dict[str, str]]] = {fn: [] for fn in FUNCTIONS}
 

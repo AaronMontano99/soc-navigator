@@ -1,0 +1,23 @@
+title: New Device Joined the Network
+id: new_device_on_network
+status: stable
+description: >
+  A device responded on your network that wasn't seen in a previous scan this session. Purely
+  informational inventory tracking — a new device on your Wi-Fi is normal and expected most of
+  the time; this just surfaces the change so you can confirm you recognize it.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: network_exposure
+  product: live_scan
+detection:
+  selection:
+    event_type: device_discovery
+    is_new: true
+  condition: selection
+level: low
+falsepositives:
+  - The first scan this session (every device will show as "new")
+  - Devices that rotate IP addresses via DHCP between scans
+confidence:
+  base: 45

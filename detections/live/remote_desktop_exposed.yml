@@ -1,0 +1,27 @@
+title: Remote Desktop / Screen-Sharing Service Exposed
+id: remote_desktop_exposed
+status: stable
+description: >
+  RDP (3389) or VNC (5900) is reachable on your local network. These give full remote control of
+  a device — worth confirming this is a device you intentionally access remotely, and that it
+  requires strong authentication.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: network_exposure
+  product: live_scan
+detection:
+  selection:
+    event_type: port_exposure
+  selection_port:
+    port: [3389, 5900]
+  condition: selection and selection_port
+level: high
+falsepositives:
+  - Intentional remote-access setup for a home server or workstation you control
+confidence:
+  base: 70
+  increase:
+    - factor: "No service banner was returned on connect"
+      field_check: {field: banner, exists: false}
+      weight: 10

@@ -18,6 +18,12 @@ from app.pipeline import run_scenario
 _incidents_by_scenario: dict[str, list[Incident]] = {}
 _generated_at_by_scenario: dict[str, str] = {}
 
+# Live (real network scan) results — kept entirely separate from the synthetic
+# Attack Lab store so /api/dashboard and /api/incidents (both synthetic-only)
+# never mix real findings in with the education/demo data.
+_live_incidents: list[Incident] = []
+_live_scan_meta: dict = {}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -51,7 +57,26 @@ def get_incident(incident_id: str) -> Incident | None:
     for incident in all_incidents():
         if incident.id == incident_id:
             return incident
+    for incident in _live_incidents:
+        if incident.id == incident_id:
+            return incident
     return None
+
+
+def set_live_scan_result(subnet: str, scanned_at: str, devices: list[dict], incidents: list[Incident]) -> None:
+    global _live_incidents
+    _live_incidents = incidents
+    _live_scan_meta.clear()
+    _live_scan_meta.update({"subnet": subnet, "scanned_at": scanned_at, "devices": devices})
+
+
+def live_incidents() -> list[Incident]:
+    order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    return sorted(_live_incidents, key=lambda i: (order.get(i.risk_level, 4), -i.confidence))
+
+
+def live_scan_meta() -> dict | None:
+    return dict(_live_scan_meta) if _live_scan_meta else None
 
 
 def generated_at(scenario_id: str) -> str | None:

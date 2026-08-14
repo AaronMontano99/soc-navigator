@@ -43,10 +43,18 @@ def _serialize_alert(alert: Alert) -> dict[str, Any]:
     }
 
 
+def _generated_at_for(incident: Incident) -> str | None:
+    if incident.source == "live":
+        meta = store.live_scan_meta()
+        return meta["scanned_at"] if meta else None
+    return store.generated_at(incident.scenario_id)
+
+
 def _serialize_incident_summary(incident: Incident) -> dict[str, Any]:
     return {
         "id": incident.id,
         "scenario_id": incident.scenario_id,
+        "source": incident.source,
         "title": incident.title,
         "risk_level": incident.risk_level,
         "status": incident.status,
@@ -58,13 +66,21 @@ def _serialize_incident_summary(incident: Incident) -> dict[str, Any]:
         "alert_count": len(incident.alerts),
         "created_at": incident.created_at,
         "updated_at": incident.updated_at,
-        "generated_at": store.generated_at(incident.scenario_id),
+        "generated_at": _generated_at_for(incident),
     }
+
+
+def _rules_for(incident: Incident) -> list[dict[str, Any]]:
+    if incident.source == "live":
+        from app.live.pipeline import get_live_rules
+
+        return get_live_rules()
+    return get_rules()
 
 
 def _serialize_incident_detail(incident: Incident) -> dict[str, Any]:
     summary = _serialize_incident_summary(incident)
-    total_rules = len(get_rules())
+    total_rules = len(_rules_for(incident))
     summary.update(
         {
             "alerts": [_serialize_alert(a) for a in incident.alerts],
@@ -208,7 +224,9 @@ def get_detections() -> list[dict[str, Any]]:
 
 @app.get("/api/detections/{rule_id}")
 def get_detection(rule_id: str) -> dict[str, Any]:
-    for rule in get_rules():
+    from app.live.pipeline import get_live_rules
+
+    for rule in [*get_rules(), *get_live_rules()]:
         if rule.get("id") == rule_id:
             return rule_detail(rule)
     raise HTTPException(status_code=404, detail=f"Unknown rule '{rule_id}'")
@@ -217,6 +235,45 @@ def get_detection(rule_id: str) -> dict[str, Any]:
 @app.get("/api/coverage")
 def get_coverage() -> dict[str, Any]:
     return coverage_summary(get_rules(), scenario_count=len(list_scenarios()))
+
+
+class LiveScanRequest(BaseModel):
+    subnet: str | None = None
+
+
+def _serialize_live_result(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "subnet": result["subnet"],
+        "scanned_at": result["scanned_at"],
+        "devices": result["devices"],
+        "incidents": [_serialize_incident_summary(i) for i in result["incidents"]],
+    }
+
+
+@app.post("/api/live/scan")
+def run_live_scan_endpoint(body: LiveScanRequest = LiveScanRequest()) -> dict[str, Any]:
+    from app.live.pipeline import run_live_scan
+    from app.live.scanner import UnsafeSubnetError
+
+    try:
+        result = run_live_scan(subnet=body.subnet)
+    except UnsafeSubnetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    store.set_live_scan_result(result["subnet"], result["scanned_at"], result["devices"], result["incidents"])
+    return _serialize_live_result(result)
+
+
+@app.get("/api/live/last")
+def get_last_live_scan() -> dict[str, Any]:
+    meta = store.live_scan_meta()
+    if not meta:
+        return {"subnet": None, "scanned_at": None, "devices": [], "incidents": []}
+    return {
+        "subnet": meta["subnet"],
+        "scanned_at": meta["scanned_at"],
+        "devices": meta["devices"],
+        "incidents": [_serialize_incident_summary(i) for i in store.live_incidents()],
+    }
 
 
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

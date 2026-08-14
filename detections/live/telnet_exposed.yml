@@ -1,0 +1,23 @@
+title: Insecure Telnet Service Exposed
+id: telnet_exposed
+status: stable
+description: >
+  Telnet (port 23) sends credentials and traffic in plaintext with no encryption. A reachable
+  Telnet service on your network almost always means a device is running outdated firmware or
+  was never reconfigured off an insecure default — anyone on the same network segment can
+  intercept its traffic.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: network_exposure
+  product: live_scan
+detection:
+  selection:
+    event_type: port_exposure
+    port: 23
+  condition: selection
+level: critical
+falsepositives:
+  - Legacy managed switches/routers that still default to Telnet for console access
+confidence:
+  base: 80

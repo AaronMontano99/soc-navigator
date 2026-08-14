@@ -8,7 +8,8 @@ async function request(path, opts) {
     throw new Error("NETWORK");
   }
   if (!res.ok) {
-    throw new Error(`HTTP_${res.status}`);
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `HTTP_${res.status}`);
   }
   return res.json();
 }
@@ -29,4 +30,11 @@ export const api = {
   detections: () => request("/detections"),
   detection: (id) => request(`/detections/${id}`),
   coverage: () => request("/coverage"),
+  liveScan: (subnet) =>
+    request("/live/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(subnet ? { subnet } : {}),
+    }),
+  liveLast: () => request("/live/last"),
 };

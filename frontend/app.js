@@ -11,6 +11,7 @@ import {
   renderAbout,
 } from "./views.js";
 import { renderIncident } from "./incident.js";
+import { renderLive } from "./live.js";
 
 const content = document.getElementById("content");
 const sidebar = document.getElementById("sidebar");
@@ -38,17 +39,43 @@ const ctx = {
   navigate,
   setAiContext,
   openAiDrawer,
+  setEnvironmentBadge,
   pendingRuleId: null,
 };
+
+function setEnvironmentBadge(mode) {
+  const pill = document.getElementById("env-pill");
+  const dot = document.getElementById("env-footer-dot");
+  const title = document.getElementById("env-footer-title");
+  const body = document.getElementById("env-footer-body");
+  if (mode === "live") {
+    pill.innerHTML = '<span class="dot dot-live"></span>LIVE NETWORK — REAL DATA';
+    dot.className = "dot dot-live";
+    title.textContent = "LIVE DATA";
+    body.textContent = "This is a real scan of your local network, not synthetic telemetry.";
+  } else {
+    pill.innerHTML = '<span class="dot dot-good"></span>SYNTHETIC ENVIRONMENT';
+    dot.className = "dot dot-good";
+    title.textContent = "SYNTHETIC DATA";
+    body.textContent = "All telemetry is generated. Not a production SIEM.";
+  }
+}
 
 async function navigate(view, params = {}) {
   state.view = view;
   state.params = params;
   ctx.pendingRuleId = params.ruleId || null;
 
+  const incidentParentView = params.from === "live" ? "live" : "incidents";
   sidebar.querySelectorAll(".nav-item").forEach((item) => {
-    item.classList.toggle("active", item.dataset.view === view || (view === "incident" && item.dataset.view === "incidents"));
+    item.classList.toggle("active", item.dataset.view === view || (view === "incident" && item.dataset.view === incidentParentView));
   });
+
+  if (view !== "incident") {
+    setEnvironmentBadge(view === "live" ? "live" : "synthetic");
+  } else {
+    setEnvironmentBadge(incidentParentView === "live" ? "live" : "synthetic");
+  }
 
   window.scrollTo({ top: 0 });
 
@@ -65,6 +92,8 @@ async function navigate(view, params = {}) {
       return renderCoverage(content, ctx);
     case "lab":
       return renderAttackLab(content, ctx);
+    case "live":
+      return renderLive(content, ctx);
     case "architecture":
       return renderArchitecture(content);
     case "about":

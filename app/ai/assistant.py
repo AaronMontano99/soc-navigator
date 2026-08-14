@@ -68,6 +68,31 @@ _TECHNIQUE_CLAUSE = {
     "T1566.002": "a malicious phishing link was clicked",
 }
 
+# Live (real network scan) findings are exposure/hygiene facts about a real
+# device, not an attack technique someone performed — so they get their own
+# plain-language "why it matters" / "what to do" copy, keyed by rule ID
+# rather than ATT&CK technique ID (live rules deliberately carry no
+# attack.tXXXX tags — see detections/live/*.yml).
+_LIVE_WHY_MATTERS = {
+    "telnet_exposed": "Telnet sends everything — including any credentials used on this device — in plaintext. Anyone on the same network segment can read that traffic.",
+    "remote_desktop_exposed": "This gives full remote control of the device to anything that can reach it. If it isn't protected by a strong, unique credential, it's a direct path onto the device.",
+    "database_exposed": "Databases often ship with no authentication by default. If this one doesn't require a password, anything else on your network can read or modify its data.",
+    "file_share_exposed": "File shares can expose personal files to every device on the network, and SMB has a history of exploitable vulnerabilities.",
+    "ssh_exposed": "SSH grants remote shell access. Often intentional, but worth confirming it uses key-based auth or a strong password rather than a default credential.",
+    "new_device_on_network": "This is inventory tracking, not a threat finding — a new device on your network is expected most of the time.",
+}
+
+_LIVE_NEXT_STEPS = {
+    "telnet_exposed": "Disable Telnet on {host} and use SSH instead if remote access is actually needed.",
+    "remote_desktop_exposed": "Confirm {host} requires a strong password (and ideally MFA) for remote access, or disable the service if it's not in active use.",
+    "database_exposed": "Confirm the database on {host} requires authentication, and that it isn't reachable from outside your network (check your router for port-forwarding rules).",
+    "file_share_exposed": "Confirm {host} is fully patched and that file sharing there is intentional.",
+    "ssh_exposed": "Confirm {host} uses key-based authentication, or at least a strong, non-default password.",
+    "new_device_on_network": "Confirm you recognize the device at {host}.",
+}
+
+_LIVE_SEVERITY_RANK = {"informational": 0, "low": 0, "medium": 1, "high": 2, "critical": 3}
+
 
 def _primary_user(incident: "Incident") -> str:
     return incident.users[0] if incident.users else "the affected account"
@@ -97,7 +122,27 @@ def _top_factor_label(alert) -> str | None:
     return top.label
 
 
+def _dominant_alert(incident: "Incident"):
+    """The single most salient alert in an incident — highest rule severity,
+    tie-broken by confidence. Live-scan findings on one device all share a
+    timestamp, so 'first alert' is meaningless; severity is what's salient.
+    """
+    return max(incident.alerts, key=lambda a: (_LIVE_SEVERITY_RANK.get(a.severity, 1), a.confidence))
+
+
 def next_steps(incident: "Incident") -> list[str]:
+    if incident.source == "live":
+        steps: list[str] = []
+        seen_rules: set[str] = set()
+        for alert in incident.alerts:
+            if alert.rule_id in seen_rules or alert.rule_id not in _LIVE_NEXT_STEPS:
+                continue
+            seen_rules.add(alert.rule_id)
+            steps.append(_LIVE_NEXT_STEPS[alert.rule_id].format(host=alert.event.host or _primary_host(incident)))
+        if incident.status != "likely_benign":
+            steps.append("Re-scan after making changes to confirm the finding is resolved.")
+        return steps
+
     steps: list[str] = []
     seen_techniques: set[str] = set()
     for alert in incident.alerts:
@@ -117,6 +162,16 @@ def next_steps(incident: "Incident") -> list[str]:
 
 
 def why_critical(incident: "Incident") -> str:
+    if incident.source == "live":
+        if incident.status == "likely_benign":
+            return "This is routine inventory information — a device on your network — not a risk finding."
+        dominant = _dominant_alert(incident)
+        reason = _LIVE_WHY_MATTERS.get(dominant.rule_id, "This is a real finding from a scan of your local network.")
+        return (
+            f"{dominant.rule_title} on {dominant.event.host or 'a device on your network'}. {reason} "
+            f"Confidence this is worth attention: {incident.confidence}%."
+        )
+
     if incident.status == "likely_benign":
         factors = []
         for alert in incident.alerts:
@@ -142,6 +197,17 @@ def why_critical(incident: "Incident") -> str:
 
 
 def what_happened(incident: "Incident") -> str:
+    if incident.source == "live":
+        dominant = _dominant_alert(incident)
+        host = dominant.event.host or _primary_host(incident)
+        hostname = dominant.event.fields.get("hostname")
+        label = f"{host} ({hostname})" if hostname else host
+        base = f"{dominant.rule_title} on {label}."
+        others = sorted({a.rule_title for a in incident.alerts if a is not dominant})
+        if others:
+            base += f" {len(others)} other finding(s) on the same device: {', '.join(others)}."
+        return base
+
     if incident.status == "likely_benign":
         alert = incident.alerts[0]
         factor = _top_factor_label(alert)
@@ -165,6 +231,12 @@ def what_happened(incident: "Incident") -> str:
 
 
 def why_it_matters(incident: "Incident") -> str:
+    if incident.source == "live":
+        if incident.status == "likely_benign":
+            return "No action needed — this is routine network inventory, not a risk finding."
+        dominant = _dominant_alert(incident)
+        return _LIVE_WHY_MATTERS.get(dominant.rule_id, "This is a real finding from a scan of your local network.")
+
     if incident.status == "likely_benign":
         return "No business impact identified — this activity matches an approved, expected pattern."
     tactics = set(incident.tactics)
@@ -189,6 +261,45 @@ def why_it_matters(incident: "Incident") -> str:
 
 def business_snapshot(incident: "Incident") -> dict:
     """Structured facts for the Security Leader / CISO view — same incident, no separate data."""
+    if incident.source == "live":
+        if incident.status == "likely_benign":
+            headline = "Reviewed — No Action Required"
+            priority = "None — informational only"
+            current_state = [
+                {"label": "Scan completed", "done": True},
+                {"label": "Reviewed, no remediation needed", "done": True},
+            ]
+        else:
+            headline = _dominant_alert(incident).rule_title
+            priority = {
+                "critical": "Remediate Immediately",
+                "high": "Remediate Soon",
+                "medium": "Review When Convenient",
+                "low": "Informational",
+            }.get(incident.risk_level, "Review")
+            current_state = [
+                {"label": "Scan completed", "done": True},
+                {"label": "Finding correlated to device", "done": True},
+                {
+                    "label": "Remediation recommended"
+                    if incident.risk_level in ("critical", "high")
+                    else "Remediation optional",
+                    "done": incident.risk_level in ("critical", "high"),
+                },
+            ]
+        return {
+            "headline": headline,
+            "business_risk": incident.risk_level,
+            "recommended_priority": priority,
+            "current_status": incident.status.replace("_", " "),
+            "systems_affected": len(incident.hosts),
+            "identities_involved": len(incident.users),
+            "environment_reached": _last_host(incident) if incident.hosts else "n/a",
+            "what_happened": what_happened(incident),
+            "why_it_matters": why_it_matters(incident),
+            "current_state": current_state,
+        }
+
     if incident.status == "likely_benign":
         headline = "Reviewed — No Action Required"
         priority = "None — closed as benign"
@@ -272,6 +383,11 @@ def attack_progression(incident: "Incident") -> list[dict]:
 
 
 def attack_chain_note(incident: "Incident") -> str:
+    if incident.source == "live":
+        return (
+            "This is a network-exposure finding from a live scan of a real device, not an observed "
+            "attack technique — no MITRE ATT&CK mapping is claimed for it."
+        )
     if incident.status == "likely_benign":
         return "Signature matched, but contextual factors reduced confidence below the investigation threshold."
     last = _last_host(incident)

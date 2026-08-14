@@ -59,3 +59,20 @@ def test_account_compromise_incident_includes_destination_host():
     assert "Potential" in detail["ciso"]["headline"]
     assert "Potential Potential" not in detail["ciso"]["headline"]
     assert "Possible" not in detail["ciso"]["headline"]
+
+
+def test_live_scan_rejects_public_subnet():
+    # A real scan is exercised manually (see docs/threat-model.md); this
+    # test only needs to confirm the safety boundary is wired to the API.
+    r = client.post("/api/live/scan", json={"subnet": "8.8.8.0/24"})
+    assert r.status_code == 400
+    assert "private" in r.json()["detail"].lower()
+
+
+def test_live_last_before_any_scan_has_run():
+    # Order-independent: whether or not a previous test triggered a scan,
+    # the shape of the response must always be well-formed.
+    r = client.get("/api/live/last")
+    assert r.status_code == 200
+    body = r.json()
+    assert {"subnet", "scanned_at", "devices", "incidents"} <= body.keys()

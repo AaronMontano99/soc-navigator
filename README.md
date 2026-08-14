@@ -2,15 +2,25 @@
 
 **Turn security noise into investigations.**
 
-SOC Navigator is an open-source, AI-assisted SOC investigation simulator. It takes raw synthetic
-security telemetry, runs it through a Sigma-style detection engine, correlates the resulting
-alerts into prioritized incidents, maps them to [MITRE ATT&CK](https://attack.mitre.org/matrices/enterprise/)
-and [NIST CSF 2.0](https://www.nist.gov/cyberframework), and gives an AI assistant that explains,
+SOC Navigator is an open-source, AI-assisted SOC investigation platform. It runs telemetry through
+a Sigma-style detection engine, correlates the resulting alerts into prioritized incidents, maps
+them to [MITRE ATT&CK](https://attack.mitre.org/matrices/enterprise/) and
+[NIST CSF 2.0](https://www.nist.gov/cyberframework), and gives an AI assistant that explains,
 prioritizes, and recommends next steps — without ever being the thing that decides if something
 is malicious.
 
 It exists to answer one question end to end: **how does a pile of raw events actually become an
 incident an analyst can act on and a CISO can understand?**
+
+It ships in two modes, clearly labeled and never mixed together:
+
+- **Attack Lab** — five synthetic attack scenarios (fabricated telemetry) that exercise the full
+  pipeline against realistic-looking data, for learning and demoing.
+- **My Network** — a real, working scanner: it discovers devices on *your own local network* and
+  checks a curated list of common ports for exposed services, running the findings through the
+  same detection/correlation/AI pipeline. This one produces **genuine insight about your actual
+  network**, not a simulation. See [Live Network Scanning](#live-network-scanning) below for
+  exactly what it does and doesn't see.
 
 > 15+ alerts generated → 14 signals above threshold → 5 correlated incidents → 2 critical
 
@@ -43,7 +53,7 @@ Open **http://localhost:8000**, launch a scenario from **Attack Lab**, and inves
 resulting incident — toggle Analyst / Security Leader view, walk the Timeline/Evidence/Detection/
 ATT&CK/NIST tabs, and ask the AI assistant a question about it. Everything on screen — dashboard
 numbers, incident tables, detection rule text, coverage stats — comes from the live FastAPI app,
-not fixtures.
+not fixtures. Then try **My Network** in the sidebar for a real scan of your own network.
 
 ### Testing it from other devices on your network
 
@@ -110,10 +120,13 @@ flowchart LR
    **Overview** (fleet-wide posture + signal funnel), **Incidents** (searchable/filterable table),
    **Alerts** (every raw rule match before correlation), **Rules** (the actual Sigma YAML,
    readable in-browser), **Coverage** (what's detected vs. deliberately not), **Attack Lab** (run
-   a scenario live and watch it become an incident), **Architecture** and **About** (how it's
-   built, and what it isn't). Incident detail gives the same underlying data as two audiences: a
-   **SOC Analyst View** (timeline, evidence, matched detection + confidence factors, ATT&CK chain,
-   NIST mapping) and a **Security Leader View** (plain-language business risk, no technical detail).
+   a scenario live and watch it become an incident), **My Network** (a real scan of your own LAN),
+   **Architecture** and **About** (how it's built, and what it isn't). Incident detail gives the
+   same underlying data as two audiences: a **SOC Analyst View** (timeline, evidence, matched
+   detection + confidence factors, ATT&CK chain, NIST mapping) and a **Security Leader View**
+   (plain-language business risk, no technical detail). A pill in the top bar and sidebar always
+   says which mode you're looking at — **Synthetic Environment** or **Live Network — Real Data** —
+   so the two are never ambiguous.
 
 ## Attack Lab
 
@@ -132,6 +145,36 @@ That last scenario is the point: the same raw signature produces a **critical** 
 context and a **reviewed, likely-benign** one in another, because the confidence score is a
 function of context, not just pattern-matching. That's the whole pitch behind "reducing
 operational noise" — and you can watch it happen by running scenario 1 and scenario 5 back to back.
+
+## Live Network Scanning
+
+The **My Network** tab is a real network scanner, not a simulation — click **Scan My Network** and
+it will:
+
+1. Auto-detect your machine's local subnet and ping-sweep it (via the system `ping` binary, no raw
+   sockets, no elevated permissions).
+2. TCP-connect-scan each responding device against a small, curated list of commonly-relevant
+   ports (remote access, databases, file shares — not a full 65535-port sweep).
+3. Run the results through the exact same Sigma-subset engine and correlator the synthetic
+   scenarios use (`app/live/pipeline.py` — no duplicated detection logic), producing real
+   incidents: e.g. *"Insecure Telnet Service Exposed"* on a real device at a real IP, with real
+   remediation steps.
+
+**Safety boundary, enforced server-side, not just in the UI:** `app/live/scanner.py` will only ever
+scan a private (RFC1918) or link-local subnet, capped at a /24 — this is validated on every call
+regardless of what's requested, so it can never be pointed at a public IP range. It only checks
+whether a TCP port accepts a connection; no authentication, exploitation, or credential access is
+attempted anywhere.
+
+**What this can and can't tell you:** it gives real device/port inventory — useful for "is there
+something on my network I don't recognize" or "did I leave a database open to my whole Wi-Fi." It
+cannot see process execution, command lines, or credential theft the way the synthetic Attack Lab
+rules do — that requires OS-level endpoint instrumentation (Sysmon/EDR-grade), which is out of
+scope here. Live findings are deliberately never mapped to a MITRE ATT&CK technique (an open port
+isn't an observed attack technique) — the UI says so explicitly rather than forcing a fake mapping.
+
+**No authentication on this app** — if you bind it to your LAN (see below), anyone with the URL can
+trigger a scan of your network.
 
 ## Detection rules
 
@@ -168,6 +211,7 @@ All read from the same in-memory incident store; nothing here duplicates detecti
 | `GET /api/alerts` | Every alert, flattened, before correlation |
 | `GET /api/detections` / `GET /api/detections/{id}` | Rule metadata / full rule detail + raw YAML |
 | `GET /api/coverage` | Rule/technique/tactic coverage, and what's deliberately not covered |
+| `POST /api/live/scan` / `GET /api/live/last` | Run (or re-fetch) a real scan of your local network |
 
 ## Project structure
 
@@ -182,17 +226,21 @@ soc-navigator/
 │   ├── correlation/               # alert clustering + risk scoring
 │   ├── mapping/                     # MITRE ATT&CK + NIST CSF 2.0
 │   ├── ai/                           # investigation assistant
-│   └── data/                          # scenario registry + synthetic telemetry
-├── detections/sigma/                    # the 10 detection rules (YAML)
-├── frontend/                              # console UI (vanilla JS, ES modules, no build step)
-│   ├── index.html                          # three-column shell
-│   ├── styles.css                           # design tokens + all component styles
-│   ├── api.js / helpers.js                   # fetch wrappers, formatting/escaping helpers
-│   ├── views.js                               # Overview/Incidents/Alerts/Rules/Coverage/Lab/Architecture/About
-│   ├── incident.js                             # incident detail: both views, all six analyst tabs
-│   └── app.js                                   # routing + the AI drawer
-├── docs/                                    # architecture, methodology, AI safety, design, sales demo
-└── tests/                                     # detection, correlation, and API tests
+│   ├── live/                          # real network scanner + its detection pipeline
+│   └── data/                           # scenario registry + synthetic telemetry
+├── detections/
+│   ├── sigma/                            # the 10 synthetic-scenario detection rules (YAML)
+│   └── live/                              # the 6 real network-exposure rules (YAML)
+├── frontend/                                # console UI (vanilla JS, ES modules, no build step)
+│   ├── index.html                            # three-column shell
+│   ├── styles.css                             # design tokens + all component styles
+│   ├── api.js / helpers.js                     # fetch wrappers, formatting/escaping helpers
+│   ├── views.js                                 # Overview/Incidents/Alerts/Rules/Coverage/Lab/Architecture/About
+│   ├── incident.js                               # incident detail: both views, all six analyst tabs
+│   ├── live.js                                    # My Network page
+│   └── app.js                                      # routing + the AI drawer
+├── docs/                                      # architecture, methodology, AI safety, design, sales demo
+└── tests/                                       # detection, correlation, live scanner, and API tests
 ```
 
 ## Docs
@@ -215,5 +263,7 @@ soc-navigator/
 
 ## License
 
-MIT — see [LICENSE](LICENSE). All telemetry is synthetic; no real organizational, customer, or
-production data is used anywhere in this repository.
+MIT — see [LICENSE](LICENSE). Attack Lab telemetry is entirely synthetic; no real organizational
+or customer data is used anywhere in this repository. My Network is the one real capability — it
+only ever scans your own local network (see [Live Network Scanning](#live-network-scanning) for
+the exact safety boundary), and only device/port inventory it discovers there is ever processed.

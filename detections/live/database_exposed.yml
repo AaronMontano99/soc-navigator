@@ -1,0 +1,27 @@
+title: Database Service Exposed on the Network
+id: database_exposed
+status: stable
+description: >
+  A database (MySQL, PostgreSQL, Redis, MongoDB, Elasticsearch, or MSSQL) is reachable directly
+  on your local network rather than only from the application that's supposed to use it. Many of
+  these ship with no authentication by default — worth confirming this one requires a password.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: network_exposure
+  product: live_scan
+detection:
+  selection:
+    event_type: port_exposure
+  selection_port:
+    port: [3306, 5432, 6379, 27017, 9200, 1433]
+  condition: selection and selection_port
+level: high
+falsepositives:
+  - Intentional local development database reachable only within your own network
+confidence:
+  base: 65
+  increase:
+    - factor: "No service banner was returned on connect"
+      field_check: {field: banner, exists: false}
+      weight: 10

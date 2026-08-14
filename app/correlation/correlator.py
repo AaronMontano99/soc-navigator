@@ -64,9 +64,19 @@ def _status_for(confidence: int) -> str:
     return "confirmed_suspicious"
 
 
+def _dominant_alert(alerts: list[Alert]) -> Alert:
+    """The single most salient alert in a cluster — highest rule severity,
+    tie-broken by confidence. Used wherever a title needs to represent 'the
+    finding that matters most' rather than 'whichever alert came first' —
+    the latter is meaningless for a cluster of same-timestamp findings, like
+    everything a live network scan produces for one host in one pass.
+    """
+    return max(alerts, key=lambda a: (_SEVERITY_RANK.get(a.severity, 1), a.confidence))
+
+
 def _title_for(tactics: list[str], status: str, alerts: list[Alert]) -> str:
     if status == "likely_benign":
-        return f"{alerts[0].rule_title} — Reviewed, Likely Benign"
+        return f"{_dominant_alert(alerts).rule_title} — Reviewed, Likely Benign"
     tset = set(tactics)
     if "Impact" in tset:
         return "Possible Ransomware Activity"
@@ -78,10 +88,10 @@ def _title_for(tactics: list[str], status: str, alerts: list[Alert]) -> str:
         return "Possible Data Exfiltration / Insider Threat Activity"
     if len(tactics) > 1:
         return " → ".join(tactics) + " Activity"
-    return alerts[0].rule_title
+    return _dominant_alert(alerts).rule_title
 
 
-def correlate(alerts: list[Alert], scenario_id: str) -> list[Incident]:
+def correlate(alerts: list[Alert], scenario_id: str, source: str = "synthetic") -> list[Incident]:
     if not alerts:
         return []
 
@@ -156,6 +166,7 @@ def correlate(alerts: list[Alert], scenario_id: str) -> list[Incident]:
                 tactics=tactics,
                 created_at=min(timestamps),
                 updated_at=max(timestamps),
+                source=source,
             )
         )
 

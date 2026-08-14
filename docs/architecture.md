@@ -8,8 +8,15 @@ Telemetry (JSON)  →  Detection (Sigma-subset)  →  Correlation  →  Mapping 
 
 Every stage is a pure function over the previous stage's output. Nothing is scenario-specific
 below the telemetry layer — a new scenario is just a new JSON file; a new detection is just a new
-YAML rule. The engine doesn't know or care which of the five Attack Story Mode scenarios it's
-processing.
+YAML rule. The engine doesn't know or care which of the five Attack Lab scenarios it's processing.
+
+**My Network (live) reuses this entire pipeline from the Detection stage onward.**
+`app/live/scanner.py` is the only new telemetry source — a real ping sweep + TCP port scan of the
+local subnet — and `app/live/pipeline.py` turns its output into the same `Event` shape everything
+else expects, then calls the *unmodified* `sigma_engine.run_rules()` and `correlator.correlate()`
+against `detections/live/*.yml`. No detection or correlation logic is duplicated for live mode;
+only the telemetry source and the rule set differ. See `docs/threat-model.md` for the safety
+boundary on the scanner itself.
 
 ## Components
 

@@ -18,6 +18,12 @@ environment where an incident's classification drives account lockouts, executiv
 and potentially legal/regulatory obligations. Analysts need to be able to point to *why* an alert
 fired — a rule ID, a technique, a confidence factor — not just trust a model's intuition.
 
+This holds identically for the **My Network** live scanner: a port being open is a deterministic
+fact from `app/live/scanner.py`, and the rules in `detections/live/*.yml` decide the severity — the
+AI assistant explains a real exposure finding the same way it explains a synthetic one, and never
+claims a network-exposure finding is an observed MITRE ATT&CK technique (see
+`docs/threat-model.md`).
+
 SOC Navigator's split enforces that:
 
 - **Deterministic layer** (`app/detection`, `app/correlation`) — auditable, rule-based, produces

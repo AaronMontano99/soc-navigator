@@ -1,0 +1,23 @@
+title: SMB/NetBIOS File Share Exposed
+id: file_share_exposed
+status: stable
+description: >
+  SMB (445) or NetBIOS (139) file sharing is reachable on this device. Common and often
+  intentional (Windows file sharing, a NAS), but SMB has a history of high-severity exploits —
+  worth confirming this device is fully patched and that sharing is intended.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: network_exposure
+  product: live_scan
+detection:
+  selection:
+    event_type: port_exposure
+  selection_port:
+    port: [139, 445]
+  condition: selection and selection_port
+level: medium
+falsepositives:
+  - Intentional Windows file sharing or NAS device on your network
+confidence:
+  base: 55

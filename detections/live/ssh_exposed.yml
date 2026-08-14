@@ -1,0 +1,22 @@
+title: SSH Service Reachable
+id: ssh_exposed
+status: stable
+description: >
+  SSH (22) is reachable on this device. Often completely intentional (a NAS, dev box, or server),
+  but worth a quick confirmation that this is a device you expect to allow remote shell access to,
+  and that it's not using a default or weak password.
+author: SOC Navigator
+date: 2026-01-01
+logsource:
+  category: network_exposure
+  product: live_scan
+detection:
+  selection:
+    event_type: port_exposure
+    port: 22
+  condition: selection
+level: medium
+falsepositives:
+  - Intentional remote-access setup for a server, NAS, or development machine
+confidence:
+  base: 40

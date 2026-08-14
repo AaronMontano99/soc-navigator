@@ -15,7 +15,7 @@
       <span class="tagline">Turn security noise into investigations.</span>
     </div>
     <div class="topbar-actions">
-      <span class="pill pill-status"><span class="dot dot-good"></span>SYNTHETIC ENVIRONMENT</span>
+      <span class="pill pill-status" id="env-pill"><span class="dot dot-good"></span>SYNTHETIC ENVIRONMENT</span>
       <button class="pill pill-button" id="topbar-ask-ai">&#9670; ASK AI</button>
       <a class="pill pill-button" id="topbar-github" href="https://github.com/AaronMontano99/soc-navigator" target="_blank" rel="noopener">GITHUB &#8599;</a>
     </div>
@@ -39,15 +39,19 @@
         <button class="nav-item" data-view="lab">Attack Lab</button>
       </div>
       <div class="nav-group">
+        <div class="nav-group-label">LIVE</div>
+        <button class="nav-item" data-view="live">My Network</button>
+      </div>
+      <div class="nav-group">
         <div class="nav-group-label">LEARN</div>
         <button class="nav-item" data-view="architecture">Architecture</button>
         <button class="nav-item" data-view="about">About</button>
       </div>
       <div class="sidebar-footer">
-        <span class="dot dot-good"></span>
+        <span class="dot dot-good" id="env-footer-dot"></span>
         <div>
-          <div class="sidebar-footer-title">SYNTHETIC DATA</div>
-          <div class="sidebar-footer-body">All telemetry is generated. Not a production SIEM.</div>
+          <div class="sidebar-footer-title" id="env-footer-title">SYNTHETIC DATA</div>
+          <div class="sidebar-footer-body" id="env-footer-body">All telemetry is generated. Not a production SIEM.</div>
         </div>
       </div>
     </nav>
