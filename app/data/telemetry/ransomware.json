@@ -59,7 +59,8 @@
       "destination_sensitive": true,
       "first_seen_for_user": true,
       "scheduled_job": false,
-      "source_is_admin_host": false
+      "source_is_admin_host": false,
+      "share": "\\\\*\\ADMIN$"
     }
   },
   {

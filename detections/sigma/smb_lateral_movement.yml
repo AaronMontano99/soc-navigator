@@ -11,11 +11,21 @@ logsource:
   category: network_connection
   product: windows
 detection:
-  selection:
+  # Files written to an administrative drive share (C$, ADMIN$): how tools copy a payload over.
+  selection_file_share:
     event_type: network_connection
     protocol: SMB
     admin_share: true
-  condition: selection
+    share|endswith: ["\\ADMIN$", "\\C$", "\\D$", "\\E$"]
+  # IPC$ alone is routine in any Active Directory network (replaying OTRF recordings, it
+  # fired in 18 of 37 that had no lateral movement). The service-control pipe on IPC$ is
+  # how psexec-style tools create a service on the remote host.
+  selection_service_pipe:
+    event_type: network_connection
+    protocol: SMB
+    share|endswith: "\\IPC$"
+    relative_target: svcctl
+  condition: selection_file_share or selection_service_pipe
 level: high
 tags:
   - attack.lateral_movement

@@ -203,6 +203,49 @@ the **Rules** tab (full YAML, in-browser) or the table below:
 See [`docs/detection-methodology.md`](docs/detection-methodology.md) for exactly what subset of
 the Sigma spec this engine implements (and doesn't).
 
+## Tested on real attack recordings (Oct 2026)
+
+**Why.** I want to stop building features and start building outcomes. Ten rules that fire on
+scenarios I wrote myself prove almost nothing: the rules and the test data came from the same
+head. The question a SOC actually cares about is *does this catch real attacks in real logs
+without burying the analyst?* So the three Windows host rules now get replayed against
+[OTRF Security-Datasets](https://github.com/OTRF/Security-Datasets): public recordings of real
+attack tooling (Mimikatz, Empire, Covenant, Dumpert) on real Windows hosts, with all the
+ordinary background noise, labeled with ATT&CK techniques by the people who recorded them.
+
+**How.** `python -m app.replay` downloads the recordings (cached in `.replay-cache/`, not in git),
+maps raw Sysmon and Security events onto SOC Navigator's event schema (`app/replay/normalize.py`,
+the job OCSF/ECS mappings do in a real SIEM, mapped faithfully, never helpfully), runs the real
+rules, and writes [`docs/replay-report.md`](docs/replay-report.md). 14 "dev" recordings came
+first. Before changing any rule I set aside 37 more as a holdout (every other credential-access,
+lateral-movement and execution recording; 1 more link 404s upstream and is reported, not
+guessed), so a fix gets judged on data it wasn't written against.
+
+**What it found.**
+
+| Rule | Before, holdout (37 recordings) | After, holdout |
+|---|---|---|
+| LSASS credential dumping | caught 1 of 1, but **1,926 alerts**, firing in 25 recordings with no dumping | caught 1 of 1, **15 alerts** in 5 recordings |
+| SMB admin-share lateral movement | caught 5 of 5, firing in 18 other recordings (93 alerts) | caught 5 of 5, 4 other recordings (26 alerts) |
+| Encoded PowerShell | no labeled holdout recording; fired on every Empire stager (correctly) | unchanged |
+
+- **LSASS:** matching on "a process opened a handle to lsass" fired on `svchost.exe` all day
+  long, and scored that noise at 85% confidence. Dumping needs to *read* LSASS memory, so the
+  rule now requires `PROCESS_VM_READ`.
+- **SMB:** `IPC$` is used constantly in any Active Directory network. The rule now fires on
+  file access to `C$`/`ADMIN$`, or on `IPC$` only when it's the `svcctl` service-control pipe,
+  which is how psexec-style tools start a service on the remote host.
+- **A bug in my own replay**, not the rules: some recordings write the event channel in
+  lowercase, and my first normalizer silently dropped those share events. A missed detection
+  can be the pipeline's fault, which is why every miss is listed with its evidence.
+- **My read of what's left (judgment, not a metric):** most remaining alerts are real attacker
+  activity OTRF labeled by another technique: Mimikatz patching LSASS, PowerDump reading it,
+  DLL-hijack payloads copied over `C$`, encoded Empire stagers. The clear noise left is the Azure
+  guest-agent log collector (`CollectGuestLogs.exe`) reading LSASS in 2 recordings, which a real
+  SOC would allowlist by path.
+- The other 7 rules read identity, email, SaaS or aggregated file telemetry, which these
+  recordings don't contain. The report lists them as untested rather than leaving them out.
+
 ## API
 
 All read from the same in-memory incident store; nothing here duplicates detection logic in JS.
@@ -255,15 +298,16 @@ soc-navigator/
 - [`docs/detection-methodology.md`](docs/detection-methodology.md) — the Sigma subset + confidence scoring model
 - [`docs/ai-safety.md`](docs/ai-safety.md) — why the AI explains but never adjudicates
 - [`docs/design.md`](docs/design.md) — the console UI's design tokens and layout
-- [`docs/threat-model.md`](docs/threat-model.md) — what this project is and isn't (synthetic data only)
+- [`docs/threat-model.md`](docs/threat-model.md) — what this project is and isn't
 - [`docs/sales-demo.md`](docs/sales-demo.md) — a discovery-call-style demo script for this project
+- [`docs/replay-report.md`](docs/replay-report.md) — the host rules replayed on public OTRF attack recordings, dev and holdout
 
 ## Roadmap
 
 - Export detections to Splunk/Sentinel/Elastic query syntax (Sigma's actual multi-backend value)
 - [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team)-based validation: run authorized
-  atomic tests in a lab VM and confirm the rules in `detections/sigma/` actually fire, instead of
-  only validating against synthetic JSON
+  atomic tests in a lab VM, on top of the OTRF replay above, so recordings can be made for today's tooling
+- Public recordings for the identity, email and SaaS rules, so those 7 rules get the same replay
 - Additional scenarios (compromised M365 mailbox + inbox-rule persistence, supply-chain alert)
 - Real SIEM/EDR ingestion adapter (currently synthetic JSON telemetry only)
 
